@@ -6,7 +6,7 @@ import os
 import torch
 import dill as pickle
 from torchtext.data import Field, TabularDataset, BucketIterator
-from nutshell.model import EncoderLSTM
+from nutshell.model import EncoderLSTM, DecoderLSTM
 from nutshell.utils import MiniBatchWrapper
 from tqdm import tqdm
 
@@ -19,7 +19,7 @@ parser.add_argument("--train_filename", type=str)
 parser.add_argument("--valid_filename", type=str)
 parser.add_argument("--checkpoint_dir", type=str)
 parser.add_argument("--epoch", type=int, default=1)
-parser.add_argument("--batch_size", default=32)
+parser.add_argument("--batch_size", default=4)
 
 args = parser.parse_args()
 
@@ -116,13 +116,28 @@ def train(train_data, valid_data, TEXT, columns):
     # valid_dataloader = MiniBatchWrapper(valid_iter, columns[0], columns[1])
 
     # print("| Building model...")
-    for epoch in range(1, args.epoch+1):
-        train_step(train_dataloader, epoch)
+    encoder_model = EncoderLSTM(vocab_size=len(TEXT.vocab))
+    encoder_model.to(device)
+    decoder_model = DecoderLSTM(vocab_size=len(TEXT.vocab))
+    decoder_model.to(device)
 
-def train_step(train_dataloader, epoch):
+    for epoch in range(1, args.epoch+1):
+        train_step(encoder_model, decoder_model, train_dataloader, epoch)
+
+
+def train_step(encoder_model, decoder_model, train_dataloader, epoch):
     tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
-    for source_seq, target_seq in  tqdm_progress:
-        print(source_seq, target_seq)
+    for source_seq, target_seq in tqdm_progress:
+        print("source seq", source_seq.shape)
+        # print(source_seq)
+        # print("target seq", target_seq.shape)
+        # print(target_seq)
+        encoder_outputs = encoder_model(source_seq)
+        kk = decoder_model(target_seq, encoder_outputs)
+        # print(type(encoder_outputs))
+
+
+
 
 if __name__ == "__main__":
     tr, vl, TEXT, columns = preprocess()
