@@ -6,6 +6,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
+class LinearAttentionLayer(nn.Module):
+    def __init__(self, input_size, output_size):
+        super().__init__()
+        # starts with _ means normal attr
+        self._input_size = input_size
+        self._output_size = output_size
+
+    def forward(input_features):
+        raise NotImplementedError
+
+
+
 class DecoderLSTM(nn.Module):
     def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1,
                  dropout=0.3, use_attention=False, encoder_embedding_dim=128,
@@ -31,7 +44,6 @@ class DecoderLSTM(nn.Module):
 #            hidden_size=self._hidden_size,
 #            num_layers=self._num_layers
 #        )
-
 
 
     def forward(self, sequence, encoder_outputs):
