@@ -30,15 +30,15 @@ class EncoderLSTM(nn.Module):
         print(self.lstm)
 
     def forward(self, sequence):
-        print("---inside encoder---")
-        print(sequence.shape)
+        # print("---inside encoder---")
+        # print(sequence.shape)
         batch_size = sequence.size(0)
         # sequence_length = sequence.size(1)
         state_size = batch_size, self._num_layers, self._hidden_size
-        print("state shape", state_size)
+        # print("state shape", state_size)
 
         embedded = self.embedding(sequence)
-        print("encoder embedded shape", embedded.shape)
+        # print("encoder embedded shape", embedded.shape)
 
         #h0 = embedded.data.new(*state_size).zero_()
         #print("h0", h0)
@@ -47,9 +47,9 @@ class EncoderLSTM(nn.Module):
 
         output, (hidden, cell) = self.lstm(embedded)
         # output : batch_size, sequence length, hidden size
-        print("encoder output ", output.shape)
-        print("encoder hidden ", hidden.shape)
-        print("encoder cell", cell.shape)
+        # print("encoder output ", output.shape)
+        # print("encoder hidden ", hidden.shape)
+        # print("encoder cell", cell.shape)
         # hidden and ceee: directions x num_layers,  batch_size, hidden size
 
         # reorder?

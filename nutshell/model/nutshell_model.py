@@ -5,6 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .Encoder import EncoderLSTM
+from .Decoder import DecoderLSTM
+
 
 class BaseModel(nn.Module):
     def __init__(self):
@@ -17,7 +20,11 @@ class BaseModel(nn.Module):
         raise NotImplementedError
 
 
-class BaseNutshellModel(BaseModel):
+# encoder_instance = EncoderLSTM()
+# decoder_instance = DecoderLSTM()
+
+
+class NutshellModel(BaseModel):
     def __init__(self, encoder, decoder):
         super().__init__()
 

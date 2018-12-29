@@ -102,6 +102,7 @@ def preprocess():
     return train_data, valid_data, TEXT, columns
 
 
+import torch.optim as optim
 def train(train_data, valid_data, TEXT, columns):
     print("| Building batches...")
     # device = torch.device("cuda:{}".format(args.master_device))
@@ -121,20 +122,48 @@ def train(train_data, valid_data, TEXT, columns):
     decoder_model = DecoderLSTM(vocab_size=len(TEXT.vocab))
     decoder_model.to(device)
 
+    encoder_optimizer = optim.SGD(encoder_model.parameters(), lr=0.001)
+    decoder_optimizer = optim.SGD(decoder_model.parameters(), lr=0.001)
+
     for epoch in range(1, args.epoch+1):
-        train_step(encoder_model, decoder_model, train_dataloader, epoch)
+        train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer)
 
 
-def train_step(encoder_model, decoder_model, train_dataloader, epoch):
+import torch.nn.functional as F
+
+# criterion = F.nll_loss()
+
+def train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer):
     tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
     for source_seq, target_seq in tqdm_progress:
-        print("source seq", source_seq.shape)
+        encoder_optimizer.zero_grad()
+        decoder_optimizer.zero_grad()
+
+        # print("source seq", source_seq.shape)
         # print(source_seq)
         # print("target seq", target_seq.shape)
-        # print(target_seq)
+        # print("target seq", target_seq)
+
+        target_seq_pack = target_seq.view(-1)
+
+        # print("target seq pac", target_seq_pack.shape)
+        # print("target seq pac", target_seq_pack)
         encoder_outputs = encoder_model(source_seq)
-        kk = decoder_model(target_seq, encoder_outputs)
-        # print(type(encoder_outputs))
+        decoder_outputs = decoder_model(target_seq, encoder_outputs)
+        # print("decoder final ouput", decoder_outputs.shape)
+        # print("decoder final ouput", decoder_outputs)
+        decoder_outputs_pack = decoder_outputs.view(-1, decoder_outputs.size(-1))
+        # print("decoder final ouput pack", decoder_outputs_pack.shape)
+        # print("decoder final ouput pack", decoder_outputs_pack)
+
+        loss = F.nll_loss(decoder_outputs_pack, target_seq_pack)
+        loss.backward()
+        encoder_optimizer.step()
+        decoder_optimizer.step()
+        tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item())})
+        # print("loss value", loss.item())
+
+
 
 
 

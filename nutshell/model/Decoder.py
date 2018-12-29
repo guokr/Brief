@@ -29,15 +29,16 @@ class DecoderLSTM(nn.Module):
         self._dropout = dropout
         self._hidden_size = hidden_size
         self._use_attention = use_attention
-        self._voab_size = vocab_size
+        self._vocab_size = vocab_size
         self._embedding_dim = embedding_dim
         self._batch_first = batch_first
         self._num_layers = num_layers
 
-        self.embedding = nn.Embedding(vocab_size, self._embedding_dim)
+        self.embedding = nn.Embedding(self._vocab_size, self._embedding_dim)
 
         self.lstm = nn.LSTMCell(input_size=self._embedding_dim + self._hidden_size,
                                 hidden_size=self._hidden_size)
+        self.predictor = nn.Linear(self._hidden_size, self._vocab_size)
 #        self.lstm = nn.LSTM(
 #            batch_first=self._batch_first,
 #            input_size=self._embedding_dim,
@@ -47,16 +48,16 @@ class DecoderLSTM(nn.Module):
 
 
     def forward(self, sequence, encoder_outputs):
-        print("---inside decoder---")
-        print("target seq", sequence.shape)
+        # print("---inside decoder---")
+        # print("target seq", sequence.shape)
         batch_size, sequence_length = sequence.size()
 
         embedded = self.embedding(sequence)
-        print("embedded", embedded.shape)
+        # print("embedded", embedded.shape)
         # original encoder output
         (encoder_output, encoder_output_hidden, encoder_output_cell) = encoder_outputs
 
-        print(encoder_output_hidden.shape)
+        # print(encoder_output_hidden.shape)
 
         # encoder's last time step  hidden and cell, all layers concat
         # encoder_output_hiddens = [encoder_output_hidden[i] for i in range(self._num_layers)]
@@ -70,7 +71,7 @@ class DecoderLSTM(nn.Module):
         for word_idx in range(sequence_length):
             decoder_own_input = torch.cat((embedded[:, word_idx, :], decoder_hidden_loop), dim=1)
             # decoder own input : batch_size, embedding_size + input_feed custom/ 4, 128+100
-            print("---inside inside decoder own input", decoder_own_input.shape)
+            # print("---inside inside decoder own input", decoder_own_input.shape)
             decoder_hidden, decoder_cell = self.lstm(decoder_own_input,
                                                                        (encoder_output_hidden[0], encoder_output_cell[0]))
 
@@ -79,12 +80,18 @@ class DecoderLSTM(nn.Module):
 
         decoder_own_outputs = torch.cat(outs, dim=1)
         # batch_size, seq length x hidden size
-        print("---decoder own output", decoder_own_outputs.shape)
-        decoder_own_outputs.view(batch_size, sequence_length, self._hidden_size)
+        # print("---decoder own output", decoder_own_outputs.shape)
+        decoder_own_outputs = decoder_own_outputs.view(batch_size, sequence_length, self._hidden_size)
+        # print("---decoder own output shape", decoder_own_outputs.shape)
 
-        attention_weights = None
+        # attention_weights = None
+        decoder_own_outputs = self.predictor(decoder_own_outputs)
 
-        return decoder_own_outputs, attention_weights
+        # print("decoder logits shape", decoder_own_outputs.shape)
 
+        decoder_own_outputs = F.log_softmax(decoder_own_outputs, dim=-1)
+        # print(type(decoder_own_outputs))
 
+        return decoder_own_outputs
 
+        # return decoder_own_outputs, attention_weights

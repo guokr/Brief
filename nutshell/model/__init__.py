@@ -3,3 +3,4 @@
 
 from .Encoder import EncoderLSTM
 from .Decoder import DecoderLSTM
+from .nutshell_model import NutshellModel
