@@ -8,7 +8,7 @@ import dill as pickle
 from torchtext.data import Field, TabularDataset, BucketIterator
 from nutshell.model import EncoderLSTM, DecoderLSTM
 from nutshell.utils import MiniBatchWrapper
-from nutshell.dataset import NutshellSourceField, NutshellTargetField, NutshellDataset
+from nutshell.dataset import NutshellSourceField, NutshellTargetField, NutshellDataset, NutshellIterator
 from tqdm import tqdm
 
 
@@ -79,20 +79,17 @@ def preprocess():
             for _ in row.strip().split("\t"):
                 columns.append(_)
 
-    datafields = [(columns[0], SourceField), (columns[1], TargetField)]
+    tv_datafields = [(columns[0], SourceField), (columns[1], TargetField)]
 
     dataset = NutshellDataset(train=args.train_filename,
                               valid=args.valid_filename,
-                              fields=datafields)
+                              fields=tv_datafields)
 
     train_data, valid_data = dataset.splits()
 
-#    TEXT.build_vocab(train_data)
     SourceField.build_vocab(train_data)
     TargetField.build_vocab(train_data)
 
-#    print(TEXT.vocab.itos[:10])
-#    print(TEXT.vocab.freqs.most_common(20))
 
     print(SourceField.vocab.itos[:10])
     print(SourceField.vocab.freqs.most_common(20))
@@ -103,27 +100,24 @@ def preprocess():
     # pickle.dump(TEXT, open(os.path.join(args.output_data_dir, "TEXT.p"), "wb"))
 
     ############# pre-process done
-    return train_data, valid_data, TEXT, columns
+    return train_data, valid_data, SourceField, TargetField
 
 
 import torch.optim as optim
-def train(train_data, valid_data, TEXT, columns):
+def train(train_data, valid_data, SourceField, TargetField):
     print("| Building batches...")
     # device = torch.device("cuda:{}".format(args.master_device))
     # build dataloader
-    train_iter, valid_iter = BucketIterator.splits((train_data, valid_data),
-                                batch_size=args.batch_size,
-                                device=device,
-                                sort_key=lambda x: len(x.english),
-                                sort_within_batch=True)
 
-    train_dataloader = MiniBatchWrapper(train_iter, columns[0], columns[1])
+    train_dataloader, valid_dataloader = NutshellIterator.splits(train=train_data, valid=valid_data)
+
+    # train_dataloader = MiniBatchWrapper(train_iter, columns[0], columns[1])
     # valid_dataloader = MiniBatchWrapper(valid_iter, columns[0], columns[1])
 
     # print("| Building model...")
-    encoder_model = EncoderLSTM(vocab_size=len(TEXT.vocab))
+    encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
     encoder_model.to(device)
-    decoder_model = DecoderLSTM(vocab_size=len(TEXT.vocab))
+    decoder_model = DecoderLSTM(vocab_size=len(TargetField.vocab))
     decoder_model.to(device)
 
     encoder_optimizer = optim.SGD(encoder_model.parameters(), lr=0.001)
@@ -131,7 +125,7 @@ def train(train_data, valid_data, TEXT, columns):
 
     for epoch in range(1, args.epoch+1):
         train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer)
-        eval_test(TEXT, encoder_model, decoder_model)
+        eval_test(SourceField, encoder_model, decoder_model)
 
 
 import torch.nn.functional as F
@@ -183,5 +177,5 @@ def eval_test(TEXT, encoder_model, decoder_model):
 
 
 if __name__ == "__main__":
-    tr, vl, TEXT, columns = preprocess()
-    train(tr, vl, TEXT, columns)
+    tr, vl, src, tgt = preprocess()
+    train(tr, vl, src, tgt)

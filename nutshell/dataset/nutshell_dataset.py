@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-from torchtext.data import Field, TabularDataset, BucketIterator
+from torchtext.data import TabularDataset
 
 class NutshellDatasetInitError(Exception):
     pass
@@ -33,7 +33,4 @@ class NutshellDataset(object):
                                                        skip_header=True,
                                                        fields=self.fields)
 
-        return train_data, valid_data
-
-
-
+        return {"Dataset": train_data, "Field": self.fields}, {"Dataset": valid_data, "Field": self.fields}
