@@ -8,13 +8,13 @@ import dill as pickle
 from torchtext.data import Field, TabularDataset, BucketIterator
 from nutshell.model import EncoderLSTM, DecoderLSTM
 from nutshell.utils import MiniBatchWrapper
+from nutshell.dataset import NutshellSourceField, NutshellTargetField, NutshellDataset
 from tqdm import tqdm
 
 
 
 parser = argparse.ArgumentParser(description="Nutshell training")
 # parser.add_argument("--model", type=str)
-parser.add_argument("--input_data_dir", type=str)
 parser.add_argument("--train_filename", type=str)
 parser.add_argument("--valid_filename", type=str)
 parser.add_argument("--checkpoint_dir", type=str)
@@ -67,34 +67,38 @@ def check_args():
 
 def preprocess():
     print("|LOGGING| Processing tokens and datasets...")
-    tokenize = lambda x: x.split()
 
-    TEXT = Field(sequential=True, tokenize=tokenize, lower=True, batch_first=True)
+    SourceField = NutshellSourceField()
+    TargetField = NutshellTargetField()
 
     from itertools import islice
     columns = []
 
-    with open(os.path.join(args.input_data_dir, args.train_filename)) as f_input:
+    with open(args.train_filename) as f_input:
         for row in islice(f_input, 0, 1):
             for _ in row.strip().split("\t"):
                 columns.append(_)
 
-    tv_datafields = []
+    datafields = [(columns[0], SourceField), (columns[1], TargetField)]
 
-    for c in columns:
-        tv_datafields.append((c, TEXT))
+    dataset = NutshellDataset(train=args.train_filename,
+                              valid=args.valid_filename,
+                              fields=datafields)
 
-    train_data, valid_data = TabularDataset.splits(path=args.input_data_dir,
-                                                   format="tsv",
-                                                   train=args.train_filename,
-                                                   validation=args.valid_filename,
-                                                   skip_header=True,
-                                                   fields=tv_datafields)
+    train_data, valid_data = dataset.splits()
 
-    TEXT.build_vocab(train_data)
+#    TEXT.build_vocab(train_data)
+    SourceField.build_vocab(train_data)
+    TargetField.build_vocab(train_data)
 
-    print(TEXT.vocab.itos[:10])
-    print(TEXT.vocab.freqs.most_common(20))
+#    print(TEXT.vocab.itos[:10])
+#    print(TEXT.vocab.freqs.most_common(20))
+
+    print(SourceField.vocab.itos[:10])
+    print(SourceField.vocab.freqs.most_common(20))
+
+    print(TargetField.vocab.itos[:10])
+    print(TargetField.vocab.freqs.most_common(20))
 
     # pickle.dump(TEXT, open(os.path.join(args.output_data_dir, "TEXT.p"), "wb"))
 
@@ -127,10 +131,10 @@ def train(train_data, valid_data, TEXT, columns):
 
     for epoch in range(1, args.epoch+1):
         train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer)
+        eval_test(TEXT, encoder_model, decoder_model)
 
 
 import torch.nn.functional as F
-
 # criterion = F.nll_loss()
 
 def train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer):
@@ -163,8 +167,18 @@ def train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_op
         tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item())})
         # print("loss value", loss.item())
 
+TEST_CASE = ["good job.", "hurry up."]
 
-
+def eval_test(TEXT, encoder_model, decoder_model):
+    all_vocab = TEXT.vocab.stoi
+    batch_indexed = [[all_vocab[token] for token in sent.split()] for sent in TEST_CASE]
+    # print(batch_indexed)
+    indexed = torch.LongTensor(batch_indexed).to(device)
+    encoder_outputs = encoder_model(indexed)
+    init = torch.LongTensor([[2,1], [1,2]]).to(device)
+    for i in range(10):
+        init = decoder_model(init, encoder_outputs)
+        print(init)
 
 
 
