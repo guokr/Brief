@@ -63,10 +63,9 @@ class DecoderLSTM(nn.Module):
         # encoder_output_hiddens = [encoder_output_hidden[i] for i in range(self._num_layers)]
         # encoder_output_cells = [encoder_output_cell[i] for i in range(self._num_layers)]
 
-        decoder_hidden_loop = torch.zeros(batch_size, self._hidden_size, device="cuda")
-
         # start decoder's own sequence loop
         outs = []
+        decoder_hidden_loop = torch.zeros(batch_size, self._hidden_size, device="cuda")
 
         for word_idx in range(sequence_length):
             decoder_own_input = torch.cat((embedded[:, word_idx, :], decoder_hidden_loop), dim=1)
@@ -94,4 +93,35 @@ class DecoderLSTM(nn.Module):
 
         return decoder_own_outputs
 
-        # return decoder_own_outputs, attention_weights
+
+class DecoderGRU(nn.Module):
+    def __init__(self, vocab_size, hidden_size=128):
+        super().__init__()
+        self._hidden_size = hidden_size
+        self._vocab_size = vocab_size
+        self._max_length = 10
+
+        self.embedding = nn.Embedding(self._vocab_size, self._hidden_size)
+        self.attn = nn.Linear(self._hidden_size * 2, self._max_length)
+        self.attn_combine = nn.Linear(self._hidden_size * 2, self._hidden_size)
+
+        self.gru = nn.GRU(self._hidden_size, self._hidden_size, batch_first=True)
+        self.out = nn.Linear(self._hidden_size, self._vocab_size)
+
+    def forward(self, input, hidden, encoder_outputs):
+        embedded = self.embedding(input).view(1, 1, -1)
+        attn_weights = F.softmax(
+            self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
+
+        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
+                                 encoder_outputs.unsqueeze(0))
+
+        output = torch.cat((embedded[0], attn_applied[0]), 1)
+        output = self.attn_combine(output).unsqueeze(0)
+
+        output = F.relu(output)
+        output, hidden = self.gru(output, hidden)
+
+        output = F.log_softmax(self.out(output[0]), dim=1)
+        return output, hidden, attn_weights
+

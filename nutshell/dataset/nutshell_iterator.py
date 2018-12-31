@@ -28,7 +28,7 @@ class MiniBatchWrapper(object):
 
 
 class NutshellIterator(object):
-    def __init__(self, train, valid, device="cuda", batch_size=16):
+    def __init__(self, train, valid, device="cuda", batch_size=2):
         self.train_dataset = train.get("Dataset")
         self.valid_dataset = valid.get("Dataset")
         self.field_names = [field[0] for field in train.get("Field")]
@@ -38,7 +38,7 @@ class NutshellIterator(object):
 
 
     @classmethod
-    def splits(cls, train, valid, device="cuda", batch_size=16):
+    def splits(cls, train, valid, device="cuda", batch_size=1):
         train_dataset = train.get("Dataset")
         valid_dataset = valid.get("Dataset")
         field_names = [field[0] for field in train.get("Field")]

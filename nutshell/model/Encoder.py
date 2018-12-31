@@ -55,3 +55,25 @@ class EncoderLSTM(nn.Module):
         # reorder?
         return (output, hidden, cell)
 
+
+class EncoderGRU(nn.Module):
+    def __init__(self, vocab_size, hidden_size=128):
+        super().__init__()
+        self._hidden_size = hidden_size
+        self._vocab_size = vocab_size
+        self.embedding = nn.Embedding(self._vocab_size, self._hidden_size)
+        self.gru = nn.GRU(self._hidden_size, self._hidden_size, batch_first=True)
+
+    def forward(self, sequence):
+        print("encoder input shape")
+        print(sequence.shape)
+        batch_size = sequence.size(0)
+
+        embedded = self.embedding(sequence)
+        output, hidden = self.gru(embedded)
+        print("encoder inside gru output", output.shape)
+        print("encoder inside gru hidden", hidden.shape)
+        return output, hidden
+
+
+
