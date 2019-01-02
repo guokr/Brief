@@ -7,11 +7,10 @@ import torch
 import dill as pickle
 import math
 from torchtext.data import Field, TabularDataset, BucketIterator
-from nutshell.model import EncoderLSTM, DecoderLSTM, EncoderGRU, DecoderGRU, NutshellModel
-from nutshell.utils import MiniBatchWrapper
+from nutshell.model import EncoderLSTM, DecoderLSTM, NutshellModel
+from nutshell.evaluator import Evaluator
 from nutshell.dataset import NutshellSourceField, NutshellTargetField, NutshellDataset, NutshellIterator
 from tqdm import tqdm
-
 
 
 parser = argparse.ArgumentParser(description="Nutshell training")
@@ -91,7 +90,6 @@ def preprocess():
     SourceField.build_vocab(train_data)
     TargetField.build_vocab(train_data)
 
-
     print(SourceField.vocab.itos[:100])
     print(SourceField.vocab.freqs.most_common(20))
 
@@ -107,113 +105,86 @@ def preprocess():
 import torch.optim as optim
 def train(train_data, valid_data, SourceField, TargetField):
     print("| Building batches...")
-    # device = torch.device("cuda:{}".format(args.master_device))
-    # build dataloader
 
     train_dataloader, valid_dataloader = NutshellIterator.splits(train=train_data, valid=valid_data)
 
-    # train_dataloader = MiniBatchWrapper(train_iter, columns[0], columns[1])
-    # valid_dataloader = MiniBatchWrapper(valid_iter, columns[0], columns[1])
+    print("| Building model...")
 
-    # print("| Building model...")
-    # encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
     encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
     decoder_model = DecoderLSTM(vocab_size=len(TargetField.vocab))
 
     nutshell_model = NutshellModel(encoder_model, decoder_model)
     nutshell_model.to(device)
+
     optimizer = optim.Adam(nutshell_model.parameters())
     criterion = nn.CrossEntropyLoss()
+    valid_loss_history = {}
+
+    print("| Training...")
 
     for epoch in range(1, args.epoch+1):
         train_step(nutshell_model, train_dataloader, optimizer, criterion, epoch)
-        eval_step(nutshell_model, valid_dataloader, optimizer, criterion, epoch)
-        eval_test(SourceField, TargetField, nutshell_model)
-
+        eval_step(nutshell_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
+        test(SourceField, TargetField, nutshell_model)
 
 import torch.nn.functional as F
 import torch.nn as nn
+
 def train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch):
     tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
+
     seq2seq_model.train()
+    evaluator = Evaluator(criterion)
+
     for source_seq, target_seq in tqdm_progress:
-        # print("--- in train source_seq shape", source_seq.shape)
-        # print("--- in train target seq shape", target_seq.shape)
         optimizer.zero_grad()
         output = seq2seq_model(source_seq, target_seq)
-        # print("--in train output shape", output.shape)
-        # output shap: [batch_size, sequence length, output_dim/target vocab_dim]
-
-        ## -> target_seq shape to [batch_size * (sequence length - 1)]
-        ## -> ouput shape to [batch_size * (sequence length -1), output dim]
-        target = target_seq[:, 1:]
-        target = target.contiguous().view(-1)
-        output = output[:, 1:, :]
-        output = output.contiguous().view(-1, output.shape[2])
-        # print(output.shape)
-        # print(target.shape)
-        # print(target.contiguous().view(-1))
-        # print("--- in train loss target shape", target.shape)
-        # print("--- in train loss output shape", target.shape)
-
-        loss = criterion(output, target)
-        loss.backward()
+        loss, ppl = evaluator.evaluate(output, target_seq)
         optimizer.step()
-        tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item()),
-                                   "PPL":"{:.4f}".format(math.e**loss.item())})
+        tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss),
+                                   "PPL":"{:.4f}".format(ppl)})
 
 
-def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, epoch):
+def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, eval_loss_history, epoch):
     seq2seq_model.eval()
-    tqdm_progress = tqdm(valid_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
+    evaluator = Evaluator(criterion)
+    tqdm_progress = tqdm(valid_dataloader, desc="| Validating epoch {}/{}".format(epoch, args.epoch))
     with torch.no_grad():
         for source_seq, target_seq in tqdm_progress:
             output = seq2seq_model(source_seq, target_seq, 0)
-            target = target_seq[:, 1:]
-            target = target.contiguous().view(-1)
-            output = output[:, 1:, :]
-            output = output.contiguous().view(-1, output.shape[2])
-            loss = criterion(output, target)
+            loss, ppl = evaluator.evaluate(output, target_seq, mode="eval")
             tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item()),
                                        "PPL":"{:.4f}".format(math.e**loss.item())})
 
 
 TEST_CASE_src = ["wait! <eos>", "cheers! <eos>"]
-TEST_CASE_tgt = ["<sos> <sos> <sos>", "<sos> <sos> <sos>"]
+TEST_CASE_tgt = ["<sos>", "<sos>"]
 
 
-def eval_test(SourceField, TargetField, seq2seq_model):
+def test(SourceField, TargetField, seq2seq_model):
     source_vocab = SourceField.vocab.stoi
     source_batch_indexed = [[source_vocab[token] for token in sent.split()] for sent in TEST_CASE_src]
     source_batch_indexed = torch.LongTensor(source_batch_indexed).to(device)
-
-    print(source_batch_indexed)
 
     target_voab = TargetField.vocab.stoi
     target_batch_indexed = [[target_voab[token] for token in sent.split()] for sent in TEST_CASE_tgt]
     target_batch_indexed = torch.LongTensor(target_batch_indexed).to(device)
 
-    print(target_batch_indexed)
-
     source_seq = source_batch_indexed
     target_seq = target_batch_indexed
 
-    output = seq2seq_model(source_seq, target_seq, 0)
+    output = seq2seq_model(source_seq, target_seq, 0, MAX_LENGTH=10)
     # target = target_seq[:, 1:]
     # target = target.contiguous().view(-1)
     output = output[:, 1:, :]
-    # print(output)
     # output = output.contiguous().view(-1, output.shape[2])
     topv, topi = output.topk(k=1)
+    topi = topi.squeeze(-1)
     # print(topi)
-    print(topi.shape)
-
-    output_cpu = topi
-    for batch in output_cpu:
-        for sequence in batch:
-            for word in sequence:
-                print("word is {}".format(TargetField.vocab.itos[word]))
-
+    # print(topi.shape)
+    for sentence in topi:
+        words = [TargetField.vocab.itos[word_idx] for word_idx in sentence]
+        print("Predicted -> {}".format(" ".join(words)))
 
 
 if __name__ == "__main__":

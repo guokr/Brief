@@ -35,21 +35,25 @@ class NutshellModel(nn.Module):
         self._vocab_size = decoder._vocab_size
 
 
-    def forward(self, input_seq, target_seq, teacher_forcing_ratio=0.5):
+    def forward(self, input_seq, target_seq, teacher_forcing_ratio=0.5, MAX_LENGTH=None):
         # input_seq shape: [batch_size, sequence length]
         # target_seq shape: [batch_size, sequence length]
         batch_size = target_seq.size(0)
-        max_length = target_seq.size(1)
 
-        outputs = torch.zeros(batch_size, max_length, self._vocab_size).to(self._device)
+        if MAX_LENGTH == None:
+            MAX_LENGTH = target_seq.size(1)
+
+
+        outputs = torch.zeros(batch_size, MAX_LENGTH, self._vocab_size).to(self._device)
         # print("--inside seq final all outputs shape", outputs.shape)
 
         hidden, cell = self._encoder_model(input_seq)
 
         decoder_input = target_seq[:, 0]
+
         # print("--inside seq decoder input shape", decoder_input.shape)
 
-        for t in range(1, max_length):
+        for t in range(1, MAX_LENGTH):
             output, hidden, cell = self._deocder_model(decoder_input, hidden, cell)
             outputs[:, t, :] = output
             # print(outputs)
