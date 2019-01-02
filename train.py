@@ -5,8 +5,9 @@ import argparse
 import os
 import torch
 import dill as pickle
+import math
 from torchtext.data import Field, TabularDataset, BucketIterator
-from nutshell.model import EncoderLSTM, DecoderLSTM, EncoderGRU, DecoderGRU
+from nutshell.model import EncoderLSTM, DecoderLSTM, EncoderGRU, DecoderGRU, NutshellModel
 from nutshell.utils import MiniBatchWrapper
 from nutshell.dataset import NutshellSourceField, NutshellTargetField, NutshellDataset, NutshellIterator
 from tqdm import tqdm
@@ -91,10 +92,10 @@ def preprocess():
     TargetField.build_vocab(train_data)
 
 
-    print(SourceField.vocab.itos[:10])
+    print(SourceField.vocab.itos[:100])
     print(SourceField.vocab.freqs.most_common(20))
 
-    print(TargetField.vocab.itos[:10])
+    print(TargetField.vocab.itos[:100])
     print(TargetField.vocab.freqs.most_common(20))
 
     # pickle.dump(TEXT, open(os.path.join(args.output_data_dir, "TEXT.p"), "wb"))
@@ -116,103 +117,110 @@ def train(train_data, valid_data, SourceField, TargetField):
 
     # print("| Building model...")
     # encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
-    encoder_model = EncoderGRU(vocab_size=len(SourceField.vocab))
+    encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
+    decoder_model = DecoderLSTM(vocab_size=len(TargetField.vocab))
 
-    encoder_model.to(device)
-    decoder_model = DecoderGRU(vocab_size=len(TargetField.vocab))
-    decoder_model.to(device)
-
-    encoder_optimizer = optim.SGD(encoder_model.parameters(), lr=0.001)
-    decoder_optimizer = optim.SGD(decoder_model.parameters(), lr=0.001)
+    nutshell_model = NutshellModel(encoder_model, decoder_model)
+    nutshell_model.to(device)
+    optimizer = optim.Adam(nutshell_model.parameters())
+    criterion = nn.CrossEntropyLoss()
 
     for epoch in range(1, args.epoch+1):
-        train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer)
-        eval_test(SourceField, TargetField, encoder_model, decoder_model)
+        train_step(nutshell_model, train_dataloader, optimizer, criterion, epoch)
+        eval_step(nutshell_model, valid_dataloader, optimizer, criterion, epoch)
+        # eval_test(SourceField, TargetField, encoder_model, decoder_model)
 
 
 import torch.nn.functional as F
-# criterion = F.nll_loss()
 import torch.nn as nn
-criterion = nn.NLLLoss()
-def train_step(encoder_model, decoder_model, train_dataloader, epoch, encoder_optimizer, decoder_optimizer):
+def train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch):
     tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
+    seq2seq_model.train()
     for source_seq, target_seq in tqdm_progress:
-        print("outside ", source_seq.shape)
-        encoder_optimizer.zero_grad()
-        decoder_optimizer.zero_grad()
+        # print("--- in train source_seq shape", source_seq.shape)
+        # print("--- in train target seq shape", target_seq.shape)
+        optimizer.zero_grad()
+        output = seq2seq_model(source_seq, target_seq)
+        # print("--in train output shape", output.shape)
+        # output shap: [batch_size, sequence length, output_dim/target vocab_dim]
 
-        print("source seq", source_seq.shape)
-        print(source_seq)
-        print("target seq", target_seq.shape)
-        print("target seq", target_seq)
+        ## -> target_seq shape to [batch_size * (sequence length - 1)]
+        ## -> ouput shape to [batch_size * (sequence length -1), output dim]
+        target = target_seq[:, 1:]
+        target = target.contiguous().view(-1)
+        output = output[:, 1:, :]
+        output = output.contiguous().view(-1, output.shape[2])
+        # print(output.shape)
+        # print(target.shape)
+        # print(target.contiguous().view(-1))
+        # print("--- in train loss target shape", target.shape)
+        # print("--- in train loss output shape", target.shape)
 
-        target_seq_pack = target_seq.view(-1)
-
-        # print("target seq pac", target_seq_pack.shape)
-        # print("target seq pac", target_seq_pack)
-        encoder_outputs = torch.zeros(10, 128, device=device)
-        # encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
-        encoder_outputs_, encoder_hidden = encoder_model(source_seq)
-        for ei in range(source_seq.size(1)):
-            encoder_outputs[ei]  = encoder_outputs_[0, 0]
-
-        print("outside encoder outputs", encoder_outputs.shape)
-        # print("outside encoder outputs", encoder_outputs)
-        print("outside encoder hidden", encoder_hidden.shape)
-
-        decoder_hidden = encoder_hidden
-        decoder_input = torch.tensor([[2]]).to(device)
-        print("decoder input", decoder_input)
-        print("decoder input ", decoder_input.shape)
-        loss = 0.0
-
-
-        for ei in range(target_seq.size(1)):
-            decoder_output, decoder_input, decoder_attention = decoder_model(
-                decoder_input, decoder_hidden, encoder_outputs
-            )
-            # print(decoder_output)
-            # print(decoder_output.shape)
-            decoder_input = target_seq[:, ei]
-            # print(target_seq[:, ei].unsqueeze(0))
-            # print(target_seq[:, ei].unsqueeze(0).shape)
-
-            # loss = F.nll_loss(decoder_output, target_seq[:, ei+1].unsqueeze(0))
-
-            loss += criterion(decoder_output, target_seq[:, ei])
-
+        loss = criterion(output, target)
         loss.backward()
-        encoder_optimizer.step()
-        decoder_optimizer.step()
-        tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item())})
-        # print("loss value", loss.item())
+        optimizer.step()
+        tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item()),
+                                   "PPL":"{:.4f}".format(math.e**loss.item())})
 
 
+def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, epoch):
+    seq2seq_model.eval()
+    tqdm_progress = tqdm(valid_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
+    with torch.no_grad():
+        for source_seq, target_seq in tqdm_progress:
+            output = seq2seq_model(source_seq, target_seq, 0)
+            target = target_seq[:, 1:]
+            target = target.contiguous().view(-1)
+            output = output[:, 1:, :]
+            output = output.contiguous().view(-1, output.shape[2])
+            loss = criterion(output, target)
+            tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item()),
+                                       "PPL":"{:.4f}".format(math.e**loss.item())})
 
-TEST_CASE_src = ["stop! <eos>", "cheers! <eos>"]
-TEST_CASE_tgt = ["<sos> Arrête-toi !", "<sos> Santé !"]
+
+TEST_CASE_src = "wait! <eos>"
+TEST_CASE_tgt = "<sos>"
 
 
 def eval_test(SourceField, TargetField, encoder_model, decoder_model):
     source_vocab = SourceField.vocab.stoi
-    source_batch_indexed = [[source_vocab[token] for token in sent.split()] for sent in TEST_CASE_src]
+    source_batch_indexed = [[source_vocab[token] for token in TEST_CASE_src.split()]]
     source_batch_indexed = torch.LongTensor(source_batch_indexed).to(device)
 
-    encoder_outputs = encoder_model(source_batch_indexed)
+    # source_batch_indexed = source_batch_indexed.unsqueeze(0)
 
-    target_vocab = TargetField.vocab.stoi
-    target_batch_indexed = [[target_vocab[token] for token in sent.split()] for sent in TEST_CASE_tgt]
-    target_batch_indexed = torch.LongTensor(target_batch_indexed).to(device)
+    print(source_batch_indexed.shape)
 
-    final_outs = decoder_model(target_batch_indexed, encoder_outputs)
-    out_v, out_i = torch.topk(final_outs, dim=2, k=1)
-    out_i.squeeze(2)
-    print(out_i.shape)
-    print(out_i)
-    for sample in out_i:
-        for _ in sample:
-            print(TargetField.vocab.itos[_])
+#    target_vocab = TargetField.vocab.stoi
+#    target_batch_indexed = [[target_vocab[token] for token in sent.split()] for sent in TEST_CASE_tgt]
+#    target_batch_indexed = torch.LongTensor(target_batch_indexed).to(device)
+#
+#    final_outs = decoder_model(target_batch_indexed, encoder_outputs)
+#    out_v, out_i = torch.topk(final_outs, dim=2, k=1)
+#    out_i.squeeze(2)
+#
+    encoder_outputs = torch.zeros(10, 128, device=device)
+    # encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
+    encoder_outputs_, encoder_hidden = encoder_model(source_batch_indexed)
 
+    for ei in range(source_batch_indexed.size(1)):
+        encoder_outputs[ei]  = encoder_outputs_[0, 0]
+
+    # print("outside encoder outputs", encoder_outputs.shape)
+    # print("outside encoder hidden", encoder_hidden.shape)
+
+    decoder_hidden = encoder_hidden
+    decoder_input = torch.tensor([[2]]).to(device)
+    # print("decoder input", decoder_input)
+    # print("decoder input ", decoder_input.shape)
+
+    for ei in range(10):
+        decoder_output, decoder_input, decoder_attention = decoder_model(
+            decoder_input, decoder_hidden, encoder_outputs
+        )
+        topv, topi = decoder_output.data.topk(1)
+        decoder_input = topi.squeeze().detach()
+        print(TargetField.vocab.itos[topi])
 
 
 if __name__ == "__main__":

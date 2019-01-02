@@ -38,7 +38,7 @@ class NutshellIterator(object):
 
 
     @classmethod
-    def splits(cls, train, valid, device="cuda", batch_size=1):
+    def splits(cls, train, valid, device="cuda", batch_size=2):
         train_dataset = train.get("Dataset")
         valid_dataset = valid.get("Dataset")
         field_names = [field[0] for field in train.get("Field")]

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 class EncoderLSTM(nn.Module):
     def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1, dropout=0.3,
-                 bidirectional=False, padding=0, batch_first=True):
+                 bidirectional=False, batch_first=True):
         super().__init__()
         ## starts with _ means normal attr, otherwise nn layers
         self._embedding_dim = embedding_dim
@@ -17,9 +17,12 @@ class EncoderLSTM(nn.Module):
         self._dropout = dropout
         self._bidirectional = bidirectional
         self._batch_first = batch_first
+        self._vocab_size = vocab_size
 
-        self.embedding = nn.Embedding(vocab_size, self._embedding_dim)
-        self.lstm = nn.LSTM(
+        ## ends with _layer means torch nn layers
+        self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
+        self.dropout_layer = nn.Dropout(self._dropout)
+        self.lstm_layer = nn.LSTM(
             input_size=self._embedding_dim,
             hidden_size=self._hidden_size,
             num_layers=self._num_layers,
@@ -27,17 +30,19 @@ class EncoderLSTM(nn.Module):
             bidirectional=self._bidirectional,
             batch_first=self._batch_first
         )
-        print(self.lstm)
+
 
     def forward(self, sequence):
         # print("---inside encoder---")
-        # print(sequence.shape)
-        batch_size = sequence.size(0)
+        # print("--inside encoder", sequence.shape)
+
+        # batch_size = sequence.size(0)
         # sequence_length = sequence.size(1)
-        state_size = batch_size, self._num_layers, self._hidden_size
+        # state_size = batch_size, self._num_layers, self._hidden_size
         # print("state shape", state_size)
 
-        embedded = self.embedding(sequence)
+        embedded = self.dropout_layer(self.embedding_layer(sequence))
+        ## --> embedded shape: [batch_size, sequence length, embeding_dim]
         # print("encoder embedded shape", embedded.shape)
 
         #h0 = embedded.data.new(*state_size).zero_()
@@ -45,15 +50,16 @@ class EncoderLSTM(nn.Module):
         #print(h0.shape)
         #c0 = embedded.data.new(*state_size).zero_()
 
-        output, (hidden, cell) = self.lstm(embedded)
-        # output : batch_size, sequence length, hidden size
-        # print("encoder output ", output.shape)
-        # print("encoder hidden ", hidden.shape)
-        # print("encoder cell", cell.shape)
-        # hidden and ceee: directions x num_layers,  batch_size, hidden size
+        outputs, (hidden, cell) = self.lstm_layer(embedded)
+        # print("--inside encoder outputs shape", outputs.shape)
+        # print("--inside encoder hiden shape", hidden.shape)
+        # print("--inside encoder cell shape", cell.shape)
+        ## outputs shape: [batch_size, sequence length, hidden_size x directions ]
+        ## hidden shape: [n_layers x directions, batch_size, hidden_dim]
+        ## cell shape: [n_layers x directions, batch_size, hidden_dim]
 
         # reorder?
-        return (output, hidden, cell)
+        return hidden, cell
 
 
 class EncoderGRU(nn.Module):
@@ -65,15 +71,12 @@ class EncoderGRU(nn.Module):
         self.gru = nn.GRU(self._hidden_size, self._hidden_size, batch_first=True)
 
     def forward(self, sequence):
-        print("encoder input shape")
-        print(sequence.shape)
+        # print("encoder input shape")
+        # print(sequence.shape)
         batch_size = sequence.size(0)
 
         embedded = self.embedding(sequence)
         output, hidden = self.gru(embedded)
-        print("encoder inside gru output", output.shape)
-        print("encoder inside gru hidden", hidden.shape)
+        # print("encoder inside gru output", output.shape)
+        # print("encoder inside gru hidden", hidden.shape)
         return output, hidden
-
-
-

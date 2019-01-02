@@ -29,5 +29,6 @@ class NutshellTargetField(NutshellBaseField):
     def __init__(self, **kwargs):
         kwargs["eos_token"] = "<eos>"
         kwargs["init_token"] = "<sos>"
+
         super(NutshellTargetField, self).__init__(**kwargs)
 

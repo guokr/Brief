@@ -6,6 +6,58 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class DecoderLSTM(nn.Module):
+    def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1, dropout=0.3,
+                 batch_first=True):
+        super().__init__()
+        ## starts with _ means normal attr
+        self._embedding_dim = embedding_dim
+        self._hidden_size = hidden_size
+        self._vocab_size = vocab_size
+        self._num_layers = num_layers
+        self._dropout = dropout
+        self._batch_first = batch_first
+
+        ## ends with _layer means torch nn layers
+
+        self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
+        self.lstm_layer = nn.LSTM(input_size=self._embedding_dim,
+                                  hidden_size=self._hidden_size,
+                                  num_layers=self._num_layers,
+                                  batch_first=self._batch_first)
+        self.dropput_layer = nn.Dropout(self._dropout)
+        self.predict_layer = nn.Linear(self._hidden_size, self._vocab_size)
+
+    def forward(self, input, hidden, cell):
+        # print("--inside decoder step ------------")
+        # print("--inside decoder input shape", input.shape)
+
+        # input: [batch_size]
+        # hidden: [n_layers x directions, batch_size, hidden size]
+        # cell: [n_layers x directions, batch_size, hidden size]
+
+        input = input.unsqueeze(1)
+        # print("--inside decoder input unsq shape", input.shape)
+        ## input shape: [batch_size, 1]
+        embedded = self.dropput_layer(self.embedding_layer(input))
+        ## embedded shape: [batch_size, 1, embedding_dim]
+
+        outputs, (hidden, cell) = self.lstm_layer(embedded, (hidden, cell))
+        # print("--inside decoder outputs shape", outputs.shape)
+        # print("--inside decoder hidden shape", hidden.shape)
+        # print("--inside decoder cell shape", cell.shape)
+
+        ## outputs: [batch_size, 1, hidden_dim]
+        ## hidden: [n_layers, batch_size, hidden_dim]
+        ## cell: [n_layers, batch_size, hidden_dim]
+        prediction = self.predict_layer(outputs.squeeze(1))
+
+        ## prediction : [batch_size, output_dim]
+        # print("--inside decoder prediction shape", prediction.shape)
+
+        return prediction, hidden, cell
+
+
 
 class LinearAttentionLayer(nn.Module):
     def __init__(self, input_size, output_size):
@@ -18,8 +70,7 @@ class LinearAttentionLayer(nn.Module):
         raise NotImplementedError
 
 
-
-class DecoderLSTM(nn.Module):
+class DecoderLSTM_B(nn.Module):
     def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1,
                  dropout=0.3, use_attention=False, encoder_embedding_dim=128,
                  batch_first=True):
@@ -39,12 +90,6 @@ class DecoderLSTM(nn.Module):
         self.lstm = nn.LSTMCell(input_size=self._embedding_dim + self._hidden_size,
                                 hidden_size=self._hidden_size)
         self.predictor = nn.Linear(self._hidden_size, self._vocab_size)
-#        self.lstm = nn.LSTM(
-#            batch_first=self._batch_first,
-#            input_size=self._embedding_dim,
-#            hidden_size=self._hidden_size,
-#            num_layers=self._num_layers
-#        )
 
 
     def forward(self, sequence, encoder_outputs):
@@ -108,6 +153,7 @@ class DecoderGRU(nn.Module):
         self.gru = nn.GRU(self._hidden_size, self._hidden_size, batch_first=True)
         self.out = nn.Linear(self._hidden_size, self._vocab_size)
 
+
     def forward(self, input, hidden, encoder_outputs):
         embedded = self.embedding(input).view(1, 1, -1)
         attn_weights = F.softmax(
@@ -124,4 +170,3 @@ class DecoderGRU(nn.Module):
 
         output = F.log_softmax(self.out(output[0]), dim=1)
         return output, hidden, attn_weights
-
