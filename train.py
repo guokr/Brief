@@ -128,7 +128,7 @@ def train(train_data, valid_data, SourceField, TargetField):
     for epoch in range(1, args.epoch+1):
         train_step(nutshell_model, train_dataloader, optimizer, criterion, epoch)
         eval_step(nutshell_model, valid_dataloader, optimizer, criterion, epoch)
-        # eval_test(SourceField, TargetField, encoder_model, decoder_model)
+        eval_test(SourceField, TargetField, nutshell_model)
 
 
 import torch.nn.functional as F
@@ -178,49 +178,42 @@ def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, epoch):
                                        "PPL":"{:.4f}".format(math.e**loss.item())})
 
 
-TEST_CASE_src = "wait! <eos>"
-TEST_CASE_tgt = "<sos>"
+TEST_CASE_src = ["wait! <eos>", "cheers! <eos>"]
+TEST_CASE_tgt = ["<sos> <sos> <sos>", "<sos> <sos> <sos>"]
 
 
-def eval_test(SourceField, TargetField, encoder_model, decoder_model):
+def eval_test(SourceField, TargetField, seq2seq_model):
     source_vocab = SourceField.vocab.stoi
-    source_batch_indexed = [[source_vocab[token] for token in TEST_CASE_src.split()]]
+    source_batch_indexed = [[source_vocab[token] for token in sent.split()] for sent in TEST_CASE_src]
     source_batch_indexed = torch.LongTensor(source_batch_indexed).to(device)
 
-    # source_batch_indexed = source_batch_indexed.unsqueeze(0)
+    print(source_batch_indexed)
 
-    print(source_batch_indexed.shape)
+    target_voab = TargetField.vocab.stoi
+    target_batch_indexed = [[target_voab[token] for token in sent.split()] for sent in TEST_CASE_tgt]
+    target_batch_indexed = torch.LongTensor(target_batch_indexed).to(device)
 
-#    target_vocab = TargetField.vocab.stoi
-#    target_batch_indexed = [[target_vocab[token] for token in sent.split()] for sent in TEST_CASE_tgt]
-#    target_batch_indexed = torch.LongTensor(target_batch_indexed).to(device)
-#
-#    final_outs = decoder_model(target_batch_indexed, encoder_outputs)
-#    out_v, out_i = torch.topk(final_outs, dim=2, k=1)
-#    out_i.squeeze(2)
-#
-    encoder_outputs = torch.zeros(10, 128, device=device)
-    # encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
-    encoder_outputs_, encoder_hidden = encoder_model(source_batch_indexed)
+    print(target_batch_indexed)
 
-    for ei in range(source_batch_indexed.size(1)):
-        encoder_outputs[ei]  = encoder_outputs_[0, 0]
+    source_seq = source_batch_indexed
+    target_seq = target_batch_indexed
 
-    # print("outside encoder outputs", encoder_outputs.shape)
-    # print("outside encoder hidden", encoder_hidden.shape)
+    output = seq2seq_model(source_seq, target_seq, 0)
+    # target = target_seq[:, 1:]
+    # target = target.contiguous().view(-1)
+    output = output[:, 1:, :]
+    # print(output)
+    # output = output.contiguous().view(-1, output.shape[2])
+    topv, topi = output.topk(k=1)
+    # print(topi)
+    print(topi.shape)
 
-    decoder_hidden = encoder_hidden
-    decoder_input = torch.tensor([[2]]).to(device)
-    # print("decoder input", decoder_input)
-    # print("decoder input ", decoder_input.shape)
+    output_cpu = topi
+    for batch in output_cpu:
+        for sequence in batch:
+            for word in sequence:
+                print("word is {}".format(TargetField.vocab.itos[word]))
 
-    for ei in range(10):
-        decoder_output, decoder_input, decoder_attention = decoder_model(
-            decoder_input, decoder_hidden, encoder_outputs
-        )
-        topv, topi = decoder_output.data.topk(1)
-        decoder_input = topi.squeeze().detach()
-        print(TargetField.vocab.itos[topi])
 
 
 if __name__ == "__main__":
