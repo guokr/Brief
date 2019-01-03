@@ -63,20 +63,37 @@ class EncoderLSTM(nn.Module):
 
 
 class EncoderGRU(nn.Module):
-    def __init__(self, vocab_size, hidden_size=128):
+    def __init__(self, vocab_size, embedding_dim, encoder_hidden_size=128, decoder_hidden_size=128,
+                 dropout=0.3, batch_first=True, bidirectional=True):
         super().__init__()
-        self._hidden_size = hidden_size
+        self._encoder_hidden_size = encoder_hidden_size
+        self._decoder_hidden_size = decoder_hidden_size
         self._vocab_size = vocab_size
-        self.embedding = nn.Embedding(self._vocab_size, self._hidden_size)
-        self.gru = nn.GRU(self._hidden_size, self._hidden_size, batch_first=True)
+        self._embedding_dim = embedding_dim
+
+        self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
+        self.gru_layer = nn.GRU(input_size=self._embedding_dim,
+                                hidden_size=self._encoder_hidden_size,
+                                batch_first=True,
+                                bidirectional=True)
+        self.fc_layer = nn.Linear(self._encoder_hidden_size * 2, self._decoder_hidden_size)
+        self.dropout_layer = nn.Dropout(self._dropout)
+
 
     def forward(self, sequence):
-        # print("encoder input shape")
-        # print(sequence.shape)
-        batch_size = sequence.size(0)
+        # sequence shape: [batch_size, sequence length]
+        embedded = self.dropout_layer(self.embedding_layer(sequence))
 
-        embedded = self.embedding(sequence)
-        output, hidden = self.gru(embedded)
-        # print("encoder inside gru output", output.shape)
-        # print("encoder inside gru hidden", hidden.shape)
-        return output, hidden
+        # embedded shape: [batch_size, sequence length, embedding dim]
+        outputs, hidden = self.gru_layer(embedded)
+
+        # outputs shape: [batch_size, sequence length, num_directions x hidden_size]
+        # hidden shape: [num_layers x num_directions, batch_size, hidden_size]
+
+        #################
+        # hidden stacked as [forward1, backward1, forward2, backward2] at last timestep
+
+        hidden = torch.tanh(self.fc_layer(torch.cat((hidden[-2,:,:], hidden[-1,:,:]), dim=1)))
+
+        ## concat the encoder 's bidir 'hidden  and tanh map to decoder size
+        return outputs, hidden

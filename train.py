@@ -140,12 +140,10 @@ def train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch):
     for source_seq, target_seq in tqdm_progress:
         optimizer.zero_grad()
         output = seq2seq_model(source_seq, target_seq)
-        loss, ppl, rougef1, rougef2 = evaluator.evaluate(output, target_seq)
+        loss, ppl = evaluator.evaluate(output, target_seq)
         optimizer.step()
         tqdm_progress.set_postfix({"Loss": "{:.4f}".format(loss),
-                                   "PPL": "{:.4f}".format(ppl),
-                                   "Rouge-1": "{:.4f}".format(rougef1),
-                                   "Rouge-2": "{:.4f}".format(rougef2)})
+                                   "PPL": "{:.4f}".format(ppl)})
 
 
 def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, eval_loss_history, epoch):
