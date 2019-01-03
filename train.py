@@ -19,7 +19,7 @@ parser.add_argument("--train_filename", type=str)
 parser.add_argument("--valid_filename", type=str)
 parser.add_argument("--checkpoint_dir", type=str)
 parser.add_argument("--epoch", type=int, default=1)
-parser.add_argument("--batch_size", default=4)
+parser.add_argument("--batch_size", type=int, default=4)
 
 args = parser.parse_args()
 
@@ -90,9 +90,10 @@ def preprocess():
     SourceField.build_vocab(train_data)
     TargetField.build_vocab(train_data)
 
+    print("Source dataset ---")
     print(SourceField.vocab.itos[:100])
     print(SourceField.vocab.freqs.most_common(20))
-
+    print("Target dataset ---")
     print(TargetField.vocab.itos[:100])
     print(TargetField.vocab.freqs.most_common(20))
 
@@ -106,7 +107,9 @@ import torch.optim as optim
 def train(train_data, valid_data, SourceField, TargetField):
     print("| Building batches...")
 
-    train_dataloader, valid_dataloader = NutshellIterator.splits(train=train_data, valid=valid_data)
+    train_dataloader, valid_dataloader = NutshellIterator.splits(train=train_data,
+                                                                 valid=valid_data,
+                                                                 batch_size=args.batch_size)
 
     print("| Building model...")
 
@@ -125,24 +128,24 @@ def train(train_data, valid_data, SourceField, TargetField):
     for epoch in range(1, args.epoch+1):
         train_step(nutshell_model, train_dataloader, optimizer, criterion, epoch)
         eval_step(nutshell_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
-        test(SourceField, TargetField, nutshell_model)
+        test_step(SourceField, TargetField, nutshell_model)
 
 import torch.nn.functional as F
 import torch.nn as nn
 
 def train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch):
     tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
-
     seq2seq_model.train()
     evaluator = Evaluator(criterion)
-
     for source_seq, target_seq in tqdm_progress:
         optimizer.zero_grad()
         output = seq2seq_model(source_seq, target_seq)
-        loss, ppl = evaluator.evaluate(output, target_seq)
+        loss, ppl, rougef1, rougef2 = evaluator.evaluate(output, target_seq)
         optimizer.step()
-        tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss),
-                                   "PPL":"{:.4f}".format(ppl)})
+        tqdm_progress.set_postfix({"Loss": "{:.4f}".format(loss),
+                                   "PPL": "{:.4f}".format(ppl),
+                                   "Rouge-1": "{:.4f}".format(rougef1),
+                                   "Rouge-2": "{:.4f}".format(rougef2)})
 
 
 def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, eval_loss_history, epoch):
@@ -152,16 +155,20 @@ def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, eval_loss_h
     with torch.no_grad():
         for source_seq, target_seq in tqdm_progress:
             output = seq2seq_model(source_seq, target_seq, 0)
-            loss, ppl = evaluator.evaluate(output, target_seq, mode="eval")
-            tqdm_progress.set_postfix({"Loss":"{:.4f}".format(loss.item()),
-                                       "PPL":"{:.4f}".format(math.e**loss.item())})
+            loss, ppl, rougef1, rougef2 = evaluator.evaluate(output, target_seq, mode="eval")
+            tqdm_progress.set_postfix({"Loss": "{:.4f}".format(loss),
+                                       "PPL": "{:.4f}".format(ppl),
+                                       "Rouge-1": "{:.4f}".format(rougef1),
+                                       "Rouge-2": "{:.4f}".format(rougef2)})
 
 
-TEST_CASE_src = ["wait! <eos>", "cheers! <eos>"]
-TEST_CASE_tgt = ["<sos>", "<sos>"]
+TEST_CASE_tgt = ["<sos>"]
+a = """
+滁 州 市 气 象 台   2015   年   07   月   12   日   15   时   20   分 发 布 雷 电 黄 色 预 警 信 号 ： 目 前 我 市 西 部 有 较 强 对 流 云 团 向 东 南 方 向 移 动 ， 预 计   6   小 时 内 我 市 部 分 地 区 将 发 生 雷 电 活 动 ， 并 可 能 伴 有 短 时 强 降 水 、 大 风 、 局 部 冰 雹 等 强 对 流 天 气 ， 请 注 意 防 范 。 图 例 标 准 防 御 指 南   6   小 时 内 可 能 发 生 雷 电 活 动 ， 可 能 会 造 成 雷 电 灾 害 事 故 。   1   、 政 府 及 相 关 部 门 按 照 职 责 做 好 防 雷 工 作 ；   2   、 密 切 关 注 天 气 ， 尽 量 避 免 户 外 活 动 。
+"""
+TEST_CASE_src = [a]
 
-
-def test(SourceField, TargetField, seq2seq_model):
+def test_step(SourceField, TargetField, seq2seq_model):
     source_vocab = SourceField.vocab.stoi
     source_batch_indexed = [[source_vocab[token] for token in sent.split()] for sent in TEST_CASE_src]
     source_batch_indexed = torch.LongTensor(source_batch_indexed).to(device)
@@ -173,7 +180,7 @@ def test(SourceField, TargetField, seq2seq_model):
     source_seq = source_batch_indexed
     target_seq = target_batch_indexed
 
-    output = seq2seq_model(source_seq, target_seq, 0, MAX_LENGTH=10)
+    output = seq2seq_model(source_seq, target_seq, 0, MAX_LENGTH=100)
     # target = target_seq[:, 1:]
     # target = target.contiguous().view(-1)
     output = output[:, 1:, :]

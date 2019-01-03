@@ -38,12 +38,11 @@ class NutshellIterator(object):
 
 
     @classmethod
-    def splits(cls, train, valid, device="cuda", batch_size=2):
+    def splits(cls, train, valid, batch_size=2, device="cuda"):
         train_dataset = train.get("Dataset")
         valid_dataset = valid.get("Dataset")
         field_names = [field[0] for field in train.get("Field")]
         device = device
-        batch_size = batch_size
 
         train_iter, valid_iter = BucketIterator.splits((train_dataset, valid_dataset),
                                                        batch_size=batch_size,
