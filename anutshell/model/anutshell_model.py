@@ -25,7 +25,7 @@ class BaseModel(nn.Module):
 # decoder_instance = DecoderLSTM()
 
 
-class NutshellModel(nn.Module):
+class AnutshellModel(nn.Module):
     def __init__(self, encoder, decoder):
         super().__init__()
         self._encoder_model = encoder
@@ -62,8 +62,3 @@ class NutshellModel(nn.Module):
             decoder_input = (target_seq[:, t] if teacher_force else top1)
 
         return outputs
-
-
-
-
-

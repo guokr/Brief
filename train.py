@@ -2,14 +2,11 @@
 # encoding: utf-8
 
 import argparse
-import os
 import torch
-import dill as pickle
-import math
 from torchtext.data import Field, TabularDataset, BucketIterator
-from nutshell.model import EncoderLSTM, DecoderLSTM, NutshellModel
-from nutshell.evaluator import Evaluator
-from nutshell.dataset import NutshellSourceField, NutshellTargetField, NutshellDataset, NutshellIterator
+from anutshell.model import EncoderLSTM, DecoderLSTM, AnutshellModel
+from anutshell.evaluator import Evaluator
+from anutshell.dataset import AnutshellSourceField, AnutshellTargetField, AnutshellDataset, AnutshellIterator
 from tqdm import tqdm
 
 
@@ -68,8 +65,8 @@ def check_args():
 def preprocess():
     print("|LOGGING| Processing tokens and datasets...")
 
-    SourceField = NutshellSourceField()
-    TargetField = NutshellTargetField()
+    SourceField = AnutshellSourceField()
+    TargetField = AnutshellTargetField()
 
     from itertools import islice
     columns = []
@@ -81,7 +78,7 @@ def preprocess():
 
     tv_datafields = [(columns[0], SourceField), (columns[1], TargetField)]
 
-    dataset = NutshellDataset(train=args.train_filename,
+    dataset = AnutshellDataset(train=args.train_filename,
                               valid=args.valid_filename,
                               fields=tv_datafields)
 
@@ -107,7 +104,7 @@ import torch.optim as optim
 def train(train_data, valid_data, SourceField, TargetField):
     print("| Building batches...")
 
-    train_dataloader, valid_dataloader = NutshellIterator.splits(train=train_data,
+    train_dataloader, valid_dataloader = AnutshellIterator.splits(train=train_data,
                                                                  valid=valid_data,
                                                                  batch_size=args.batch_size)
 
@@ -116,19 +113,19 @@ def train(train_data, valid_data, SourceField, TargetField):
     encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
     decoder_model = DecoderLSTM(vocab_size=len(TargetField.vocab))
 
-    nutshell_model = NutshellModel(encoder_model, decoder_model)
-    nutshell_model.to(device)
+    anutshell_model = AnutshellModel(encoder_model, decoder_model)
+    anutshell_model.to(device)
 
-    optimizer = optim.Adam(nutshell_model.parameters())
+    optimizer = optim.Adam(anutshell_model.parameters())
     criterion = nn.CrossEntropyLoss()
     valid_loss_history = {}
 
     print("| Training...")
 
     for epoch in range(1, args.epoch+1):
-        train_step(nutshell_model, train_dataloader, optimizer, criterion, epoch)
-        eval_step(nutshell_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
-        test_step(SourceField, TargetField, nutshell_model)
+        train_step(anutshell_model, train_dataloader, optimizer, criterion, epoch)
+        eval_step(anutshell_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
+        test_step(SourceField, TargetField, anutshell_model)
 
 import torch.nn.functional as F
 import torch.nn as nn

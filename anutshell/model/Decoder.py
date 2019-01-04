@@ -149,7 +149,3 @@ class DecoderGRU(nn.Module):
         # output [batch_size, vocab_size]
 
         return output, hidden.squeeze(0)
-
-
-
-

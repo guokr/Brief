@@ -3,11 +3,11 @@
 
 from torchtext.data import TabularDataset
 
-class NutshellDatasetInitError(Exception):
+class AnutshellDatasetInitError(Exception):
     pass
 
 
-class NutshellDataset(object):
+class AnutshellDataset(object):
     def __init__(self, train, valid, fields, **kwargs):
         self._parse_path(train, valid)
         self.fields = fields

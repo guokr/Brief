@@ -4,7 +4,7 @@
 import torchtext
 
 
-class NutshellBaseField(torchtext.data.Field):
+class AnutshellBaseField(torchtext.data.Field):
     def __init__(self, **kwargs):
         kwargs["sequential"] = True
         kwargs["tokenize"] = lambda x: x.split()
@@ -16,13 +16,13 @@ class NutshellBaseField(torchtext.data.Field):
         super(NutshellBaseField, self).build_vocab(args["Dataset"])
 
 
-class NutshellSourceField(NutshellBaseField):
+class AnutshellSourceField(NutshellBaseField):
     def __init__(self, **kwargs):
         kwargs["eos_token"]  = "<eos>"
         super(NutshellSourceField, self).__init__(**kwargs)
 
 
-class NutshellTargetField(NutshellBaseField):
+class AnutshellTargetField(NutshellBaseField):
     """
     Wrapper of original torchtext data Field
     """

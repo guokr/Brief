@@ -27,7 +27,7 @@ class MiniBatchWrapper(object):
         return len(self.dl)
 
 
-class NutshellIterator(object):
+class AnutshellIterator(object):
     def __init__(self, train, valid, device="cuda", batch_size=2):
         self.train_dataset = train.get("Dataset")
         self.valid_dataset = valid.get("Dataset")
