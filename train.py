@@ -4,9 +4,9 @@
 import argparse
 import torch
 from torchtext.data import Field, TabularDataset, BucketIterator
-from anutshell.model import EncoderLSTM, DecoderLSTM, AnutshellModel
-from anutshell.evaluator import Evaluator
-from anutshell.dataset import AnutshellSourceField, AnutshellTargetField, AnutshellDataset, AnutshellIterator
+from brief.model import DecoderGRU, EncoderGRU, BriefModel
+from brief.evaluator import Evaluator
+from brief.dataset import BriefSourceField, BriefTargetField, BriefDataset, BriefIterator
 from tqdm import tqdm
 
 
@@ -65,8 +65,8 @@ def check_args():
 def preprocess():
     print("|LOGGING| Processing tokens and datasets...")
 
-    SourceField = AnutshellSourceField()
-    TargetField = AnutshellTargetField()
+    SourceField = BriefSourceField()
+    TargetField = BriefTargetField()
 
     from itertools import islice
     columns = []
@@ -78,7 +78,7 @@ def preprocess():
 
     tv_datafields = [(columns[0], SourceField), (columns[1], TargetField)]
 
-    dataset = AnutshellDataset(train=args.train_filename,
+    dataset = BriefDataset(train=args.train_filename,
                               valid=args.valid_filename,
                               fields=tv_datafields)
 
@@ -104,28 +104,28 @@ import torch.optim as optim
 def train(train_data, valid_data, SourceField, TargetField):
     print("| Building batches...")
 
-    train_dataloader, valid_dataloader = AnutshellIterator.splits(train=train_data,
+    train_dataloader, valid_dataloader = BriefIterator.splits(train=train_data,
                                                                  valid=valid_data,
                                                                  batch_size=args.batch_size)
 
     print("| Building model...")
 
-    encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
-    decoder_model = DecoderLSTM(vocab_size=len(TargetField.vocab))
+    encoder_model = EncoderGRU(vocab_size=len(SourceField.vocab))
+    decoder_model = DecoderGRU(vocab_size=len(TargetField.vocab))
 
-    anutshell_model = AnutshellModel(encoder_model, decoder_model)
-    anutshell_model.to(device)
+    brief_model = BriefModel(encoder_model, decoder_model)
+    brief_model.to(device)
 
-    optimizer = optim.Adam(anutshell_model.parameters())
+    optimizer = optim.Adam(brief_model.parameters())
     criterion = nn.CrossEntropyLoss()
     valid_loss_history = {}
 
     print("| Training...")
 
     for epoch in range(1, args.epoch+1):
-        train_step(anutshell_model, train_dataloader, optimizer, criterion, epoch)
-        eval_step(anutshell_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
-        test_step(SourceField, TargetField, anutshell_model)
+        train_step(brief_model, train_dataloader, optimizer, criterion, epoch)
+        eval_step(brief_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
+        test_step(SourceField, TargetField, brief_model)
 
 import torch.nn.functional as F
 import torch.nn as nn

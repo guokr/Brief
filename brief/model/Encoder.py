@@ -63,13 +63,14 @@ class EncoderLSTM(nn.Module):
 
 
 class EncoderGRU(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, encoder_hidden_size=128, decoder_hidden_size=128,
+    def __init__(self, vocab_size, embedding_dim=128, encoder_hidden_size=128, decoder_hidden_size=128,
                  dropout=0.3, batch_first=True, bidirectional=True):
         super().__init__()
         self._encoder_hidden_size = encoder_hidden_size
         self._decoder_hidden_size = decoder_hidden_size
         self._vocab_size = vocab_size
         self._embedding_dim = embedding_dim
+        self._dropout = dropout
 
         self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
         self.gru_layer = nn.GRU(input_size=self._embedding_dim,

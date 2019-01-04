@@ -88,9 +88,10 @@ class BahdanauAttention(nn.Module):
         return F.softmax(attention, dim=1)
 
 
+atten_instance = BahdanauAttention()
 
 class DecoderGRU(nn.Module):
-    def __init__(self, vocab_size, attention, embedding_dim=128, encoder_hidden_size=128, decoder_hidden_size=128,
+    def __init__(self, vocab_size, attention=atten_instance, embedding_dim=128, encoder_hidden_size=128, decoder_hidden_size=128,
                  dropout=0.3):
         super().__init__()
 

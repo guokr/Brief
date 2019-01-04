@@ -3,4 +3,4 @@
 
 from .Encoder import EncoderLSTM, EncoderGRU
 from .Decoder import DecoderLSTM, DecoderGRU
-from .nutshell_model import NutshellModel
+from .brief_model import BriefModel

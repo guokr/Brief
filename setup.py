@@ -9,9 +9,10 @@ with open("README.md", "r") as f:
 
 with open("requirements.txt", "r") as f:
     reqs = [l for l in f.read().splitlines() if l]
+    print(reqs)
 
 setup(
-    name="anutshell",
+    name="brief",
     version="0.0.1",
     description="Text Summarizer",
     long_description=readme,

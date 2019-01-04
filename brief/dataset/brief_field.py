@@ -4,25 +4,25 @@
 import torchtext
 
 
-class AnutshellBaseField(torchtext.data.Field):
+class BriefBaseField(torchtext.data.Field):
     def __init__(self, **kwargs):
         kwargs["sequential"] = True
         kwargs["tokenize"] = lambda x: x.split()
         kwargs["lower"] = True
         kwargs["batch_first"] = True
-        super(NutshellBaseField, self).__init__(**kwargs)
+        super(BriefBaseField, self).__init__(**kwargs)
 
     def build_vocab(self, args):
-        super(NutshellBaseField, self).build_vocab(args["Dataset"])
+        super(BriefBaseField, self).build_vocab(args["Dataset"])
 
 
-class AnutshellSourceField(NutshellBaseField):
+class BriefSourceField(BriefBaseField):
     def __init__(self, **kwargs):
         kwargs["eos_token"]  = "<eos>"
-        super(NutshellSourceField, self).__init__(**kwargs)
+        super(BriefSourceField, self).__init__(**kwargs)
 
 
-class AnutshellTargetField(NutshellBaseField):
+class BriefTargetField(BriefBaseField):
     """
     Wrapper of original torchtext data Field
     """
@@ -30,5 +30,5 @@ class AnutshellTargetField(NutshellBaseField):
         kwargs["eos_token"] = "<eos>"
         kwargs["init_token"] = "<sos>"
 
-        super(NutshellTargetField, self).__init__(**kwargs)
+        super(BriefTargetField, self).__init__(**kwargs)
 
