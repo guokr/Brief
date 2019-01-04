@@ -94,6 +94,8 @@ class EncoderGRU(nn.Module):
         # hidden stacked as [forward1, backward1, forward2, backward2] at last timestep
 
         hidden = torch.tanh(self.fc_layer(torch.cat((hidden[-2,:,:], hidden[-1,:,:]), dim=1)))
-
         ## concat the encoder 's bidir 'hidden  and tanh map to decoder size
+
+        # hidden shape : [batch size, decoder_hidden_dim]
+
         return outputs, hidden

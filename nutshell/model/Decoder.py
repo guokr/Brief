@@ -58,115 +58,98 @@ class DecoderLSTM(nn.Module):
         return prediction, hidden, cell
 
 
-
-class LinearAttentionLayer(nn.Module):
-    def __init__(self, input_size, output_size):
+class BahdanauAttention(nn.Module):
+    def __init__(self, encoder_hidden_size=128, decoder_hidden_size=128):
         super().__init__()
-        # starts with _ means normal attr
-        self._input_size = input_size
-        self._output_size = output_size
+        self._encoder_hidden_size = encoder_hidden_size
+        self._decoder_hidden_size = decoder_hidden_size
+        self._weight_operator = nn.Parameter(torch.rand(self._decoder_hidden_size))
 
-    def forward(input_features):
-        raise NotImplementedError
-
-
-class DecoderLSTM_B(nn.Module):
-    def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1,
-                 dropout=0.3, use_attention=False, encoder_embedding_dim=128,
-                 batch_first=True):
-        super().__init__()
-
-        ## start with _ means normal attr, otherwise nn layers
-        self._dropout = dropout
-        self._hidden_size = hidden_size
-        self._use_attention = use_attention
-        self._vocab_size = vocab_size
-        self._embedding_dim = embedding_dim
-        self._batch_first = batch_first
-        self._num_layers = num_layers
-
-        self.embedding = nn.Embedding(self._vocab_size, self._embedding_dim)
-
-        self.lstm = nn.LSTMCell(input_size=self._embedding_dim + self._hidden_size,
-                                hidden_size=self._hidden_size)
-        self.predictor = nn.Linear(self._hidden_size, self._vocab_size)
+        self.attn_layer = nn.Linear((self._encoder_hidden_size * 2) + self._decoder_hidden_size,
+                                     self._decoder_hidden_size)
 
 
-    def forward(self, sequence, encoder_outputs):
-        # print("---inside decoder---")
-        # print("target seq", sequence.shape)
-        batch_size, sequence_length = sequence.size()
+    def forward(self, decoder_hidden, encoder_outputs):
+        # decoder hidden shape: [batch_size, decoder_hidden_dim]
+        # encoder outputs shape [batch_size, source sequence length , encoder hidden dim x encoder directions]
+        batch_size = encoder_outputs.size(0)
+        source_sequence_length = encoder_outputs.size(1)
 
-        embedded = self.embedding(sequence)
-        # print("embedded", embedded.shape)
-        # original encoder output
-        (encoder_output, encoder_output_hidden, encoder_output_cell) = encoder_outputs
+        hidden = decoder_hidden.unsqueeze(1).repeat(1, source_sequence_length, 1)
+        # hidden shape : [batch_size, source_seq length, decoder_hidden_dim]
 
-        # print(encoder_output_hidden.shape)
+        attn_affect = torch.tanh(self.attn_layer(torch.cat((hidden, encoder_outputs), dim=2)))
+        attn_affect = attn_affect.permute(0, 2, 1)
 
-        # encoder's last time step  hidden and cell, all layers concat
-        # encoder_output_hiddens = [encoder_output_hidden[i] for i in range(self._num_layers)]
-        # encoder_output_cells = [encoder_output_cell[i] for i in range(self._num_layers)]
+        weight_op = self._weight_operator.repeat(batch_size, 1).unsqueeze(1)
 
-        # start decoder's own sequence loop
-        outs = []
-        decoder_hidden_loop = torch.zeros(batch_size, self._hidden_size, device="cuda")
+        attention = torch.bmm(weight_op, attn_affect).squeeze(1)
 
-        for word_idx in range(sequence_length):
-            decoder_own_input = torch.cat((embedded[:, word_idx, :], decoder_hidden_loop), dim=1)
-            # decoder own input : batch_size, embedding_size + input_feed custom/ 4, 128+100
-            # print("---inside inside decoder own input", decoder_own_input.shape)
-            decoder_hidden, decoder_cell = self.lstm(decoder_own_input,
-                                                                       (encoder_output_hidden[0], encoder_output_cell[0]))
+        return F.softmax(attention, dim=1)
 
-            decoder_hidden_loop = decoder_hidden
-            outs.append(decoder_hidden)
-
-        decoder_own_outputs = torch.cat(outs, dim=1)
-        # batch_size, seq length x hidden size
-        # print("---decoder own output", decoder_own_outputs.shape)
-        decoder_own_outputs = decoder_own_outputs.view(batch_size, sequence_length, self._hidden_size)
-        # print("---decoder own output shape", decoder_own_outputs.shape)
-
-        # attention_weights = None
-        decoder_own_outputs = self.predictor(decoder_own_outputs)
-
-        # print("decoder logits shape", decoder_own_outputs.shape)
-
-        decoder_own_outputs = F.log_softmax(decoder_own_outputs, dim=-1)
-        # print(type(decoder_own_outputs))
-
-        return decoder_own_outputs
 
 
 class DecoderGRU(nn.Module):
-    def __init__(self, vocab_size, hidden_size=128):
+    def __init__(self, vocab_size, attention, embedding_dim=128, encoder_hidden_size=128, decoder_hidden_size=128,
+                 dropout=0.3):
         super().__init__()
-        self._hidden_size = hidden_size
+
+        self._embedding_dim = embedding_dim
+        self._encoder_hidden_size = encoder_hidden_size
+        self._decoder_hidden_size = decoder_hidden_size
         self._vocab_size = vocab_size
-        self._max_length = 10
+        self._dropout = dropout
 
-        self.embedding = nn.Embedding(self._vocab_size, self._hidden_size)
-        self.attn = nn.Linear(self._hidden_size * 2, self._max_length)
-        self.attn_combine = nn.Linear(self._hidden_size * 2, self._hidden_size)
-
-        self.gru = nn.GRU(self._hidden_size, self._hidden_size, batch_first=True)
-        self.out = nn.Linear(self._hidden_size, self._vocab_size)
+        self.attention_layer = attention
+        self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
+        self.gru_layer = nn.GRU(self._encoder_hidden_size*2+self._embedding_dim,
+                                self._decoder_hidden_size)
+        self.dropout_layer = nn.Dropout(self._dropout)
+        self.predict_layer = nn.Linear(self._encoder_hidden_size*2+self._decoder_hidden_size+self._embedding_dim,
+                                       self._vocab_size)
 
 
     def forward(self, input, hidden, encoder_outputs):
-        embedded = self.embedding(input).view(1, 1, -1)
-        attn_weights = F.softmax(
-            self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
+        # input shape: [batch_size]
+        # decoder hidden : [batch_size, decoder hidden size]
+        # encoder outputs : [batch_size, source seq length, encoder_hidden dim x directions]
+        input = input.unsqueeze(1)
+        # input shape: [batch_size, 1]
+        embedded = self.dropout_layer(self.embedding_layer(input))
 
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
+        # embedded shape: [batch_size, 1, embedding_dim]
 
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
-        output = self.attn_combine(output).unsqueeze(0)
+        a = self.attention_layer(hidden, encoder_outputs)
 
-        output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
+        # a shape: [batch_size, source seq lenght]
 
-        output = F.log_softmax(self.out(output[0]), dim=1)
-        return output, hidden, attn_weights
+        a = a.unsqueeze(1)
+
+        # a shape: [batch_size, 1, source seq lenght]
+        weighted = torch.bmm(a, encoder_outputs)
+        # weighted : [batch_size, 1, encoder hidden dim x directions]
+
+        gru_input = torch.cat((embedded, weighted), dim=2)
+        # gru input : [batch_size, 1, encoder hidden dim x directions + embedding_dim]
+        output, hidden = self.gru_layer(gru_input, hidden.unsqueeze(1))
+
+        # output [batch_size, target seq len, decoder_hidden dim x directions]
+        # hidden [n layers x directions, batch_size, decoder_hidden dim]
+
+        ## here seq length/ layer / dir all one
+        # output: [batch_size, 1, decoder hidden dim]
+        # hidden: [1, batch_size, decoder hidden dim]
+
+        embedded = embedded.squeeze(1)
+        output = output.squeeze(1)
+        weighted = output.squeeze(1)
+
+        output = self.predict_layer(torch.cat((output, weighted, embedded), dim=1))
+
+        # output [batch_size, vocab_size]
+
+        return output, hidden.squeeze(0)
+
+
+
+
