@@ -42,28 +42,8 @@ class Seq2SeqModel(nn.Module):
             self.load(path, self._device)
 
 
-    def load(self, path, device="cuda"):
-        loaded_checkpoint = torch.load(os.path.join(path, "checkpoint_1.pt"),
-                                       map_location=device)
-
-        self._source_field = pickle.load(open(os.path.join(path, "SourceField.p"), "rb"))
-        self._target_field = pickle.load(open(os.path.join(path, "TargetField.p"), "rb"))
-
-        self._encoder_model = EncoderGRU(vocab_size=len(self._source_field.vocab))
-        self._decoder_model = DecoderGRU(vocab_size=len(self._target_field.vocab))
-
-        # print(loaded_checkpoint["model_args"])
-        self._teacher_forcing_ratio = 0.5
-        self._vocab_size = self._decoder_model._vocab_size
-
-        self.load_state_dict(loaded_checkpoint["model_state_dict"])
-
-
     def get_args(self):
         return vars(self)
-        # return {"BrifModel": vars(self),
-                # "Encoder": self._encoder_model.get_args(),
-                # "Decoder": self._deocder_model.get_args()}
 
 
     def brief(self, text):
