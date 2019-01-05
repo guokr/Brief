@@ -81,6 +81,10 @@ class EncoderGRU(nn.Module):
         self.dropout_layer = nn.Dropout(self._dropout)
 
 
+    def get_args(self):
+        return vars(self)
+
+
     def forward(self, sequence):
         # sequence shape: [batch_size, sequence length]
         embedded = self.dropout_layer(self.embedding_layer(sequence))

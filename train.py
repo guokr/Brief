@@ -3,11 +3,12 @@
 
 import argparse
 import torch
-from torchtext.data import Field, TabularDataset, BucketIterator
-from brief.model import DecoderGRU, EncoderGRU, BriefModel
+import os
+from brief.model import DecoderGRU, EncoderGRU, Seq2SeqModel
 from brief.evaluator import Evaluator
 from brief.dataset import BriefSourceField, BriefTargetField, BriefDataset, BriefIterator
 from tqdm import tqdm
+import dill as pickle
 
 
 parser = argparse.ArgumentParser(description="Nutshell training")
@@ -89,12 +90,14 @@ def preprocess():
 
     print("Source dataset ---")
     print(SourceField.vocab.itos[:100])
+    print(len(SourceField.vocab.itos))
     print(SourceField.vocab.freqs.most_common(20))
     print("Target dataset ---")
     print(TargetField.vocab.itos[:100])
     print(TargetField.vocab.freqs.most_common(20))
 
-    # pickle.dump(TEXT, open(os.path.join(args.output_data_dir, "TEXT.p"), "wb"))
+    pickle.dump(SourceField, open(os.path.join(args.checkpoint_dir, "SourceField.p"), "wb"))
+    pickle.dump(TargetField, open(os.path.join(args.checkpoint_dir, "TargetField.p"), "wb"))
 
     ############# pre-process done
     return train_data, valid_data, SourceField, TargetField
@@ -113,27 +116,28 @@ def train(train_data, valid_data, SourceField, TargetField):
     encoder_model = EncoderGRU(vocab_size=len(SourceField.vocab))
     decoder_model = DecoderGRU(vocab_size=len(TargetField.vocab))
 
-    brief_model = BriefModel(encoder_model, decoder_model)
-    brief_model.to(device)
+    seq2seq_model = Seq2SeqModel(encoder=encoder_model,
+                                 decoder=decoder_model)
+    seq2seq_model.to(device)
 
-    optimizer = optim.Adam(brief_model.parameters())
+    optimizer = optim.Adam(seq2seq_model.parameters())
     criterion = nn.CrossEntropyLoss()
     valid_loss_history = {}
 
     print("| Training...")
 
     for epoch in range(1, args.epoch+1):
-        train_step(brief_model, train_dataloader, optimizer, criterion, epoch)
-        eval_step(brief_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
-        test_step(SourceField, TargetField, brief_model)
+        train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch)
+        eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, valid_loss_history, epoch)
+        test_step(SourceField, TargetField, seq2seq_model)
 
-import torch.nn.functional as F
 import torch.nn as nn
 
+
 def train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch):
-    tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
     seq2seq_model.train()
     evaluator = Evaluator(criterion)
+    tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
     for source_seq, target_seq in tqdm_progress:
         optimizer.zero_grad()
         output = seq2seq_model(source_seq, target_seq)
@@ -155,6 +159,9 @@ def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, eval_loss_h
                                        "PPL": "{:.4f}".format(ppl),
                                        "Rouge-1": "{:.4f}".format(rougef1),
                                        "Rouge-2": "{:.4f}".format(rougef2)})
+    torch.save({"model_args": seq2seq_model.get_args(),
+                "model_state_dict": seq2seq_model.state_dict()},
+               os.path.join(args.checkpoint_dir, "checkpoint_{}.pt".format(epoch)))
 
 
 TEST_CASE_tgt = ["<sos>"]

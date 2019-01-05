@@ -19,7 +19,6 @@ class DecoderLSTM(nn.Module):
         self._batch_first = batch_first
 
         ## ends with _layer means torch nn layers
-
         self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
         self.lstm_layer = nn.LSTM(input_size=self._embedding_dim,
                                   hidden_size=self._hidden_size,
@@ -27,6 +26,9 @@ class DecoderLSTM(nn.Module):
                                   batch_first=self._batch_first)
         self.dropput_layer = nn.Dropout(self._dropout)
         self.predict_layer = nn.Linear(self._hidden_size, self._vocab_size)
+
+
+
 
     def forward(self, input, hidden, cell):
         # print("--inside decoder step ------------")
@@ -104,16 +106,21 @@ class DecoderGRU(nn.Module):
         self.attention_layer = attention
         self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
         self.gru_layer = nn.GRU(self._encoder_hidden_size*2+self._embedding_dim,
-                                self._decoder_hidden_size)
+                                self._decoder_hidden_size,
+                                batch_first=True)
         self.dropout_layer = nn.Dropout(self._dropout)
         self.predict_layer = nn.Linear(self._encoder_hidden_size*2+self._decoder_hidden_size+self._embedding_dim,
                                        self._vocab_size)
 
 
+    def get_args(self):
+        return vars(self)
+
+
     def forward(self, input, hidden, encoder_outputs):
         # input shape: [batch_size]
         # decoder hidden : [batch_size, decoder hidden size]
-        # encoder outputs : [batch_size, source seq length, encoder_hidden dim x directions]
+        # encoder outputs : [batch_size, source seq length, encoder_hidden dim x encoder directions]
         input = input.unsqueeze(1)
         # input shape: [batch_size, 1]
         embedded = self.dropout_layer(self.embedding_layer(input))
@@ -128,11 +135,12 @@ class DecoderGRU(nn.Module):
 
         # a shape: [batch_size, 1, source seq lenght]
         weighted = torch.bmm(a, encoder_outputs)
-        # weighted : [batch_size, 1, encoder hidden dim x directions]
+        # weighted : [batch_size, 1, encoder hidden dim x encoder directions]
 
         gru_input = torch.cat((embedded, weighted), dim=2)
         # gru input : [batch_size, 1, encoder hidden dim x directions + embedding_dim]
-        output, hidden = self.gru_layer(gru_input, hidden.unsqueeze(1))
+        # here hidden should be [n_layer x direct, batch_size, decoder_hid dim]
+        output, hidden = self.gru_layer(gru_input, hidden.unsqueeze(0))
 
         # output [batch_size, target seq len, decoder_hidden dim x directions]
         # hidden [n layers x directions, batch_size, decoder_hidden dim]
@@ -143,7 +151,7 @@ class DecoderGRU(nn.Module):
 
         embedded = embedded.squeeze(1)
         output = output.squeeze(1)
-        weighted = output.squeeze(1)
+        weighted = weighted.squeeze(1)
 
         output = self.predict_layer(torch.cat((output, weighted, embedded), dim=1))
 

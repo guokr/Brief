@@ -13,7 +13,7 @@ class BriefBaseField(torchtext.data.Field):
         super(BriefBaseField, self).__init__(**kwargs)
 
     def build_vocab(self, args):
-        super(BriefBaseField, self).build_vocab(args["Dataset"])
+        super(BriefBaseField, self).build_vocab(args["Dataset"], min_freq=20)
 
 
 class BriefSourceField(BriefBaseField):
