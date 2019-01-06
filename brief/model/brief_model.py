@@ -19,15 +19,16 @@ class BriefModel(object):
 
 
     def load(self, path):
-        loaded_checkpoint = torch.load(os.path.join(path, "checkpoint_1.pt"),
+        loaded_checkpoint = torch.load(os.path.join(path, "checkpoint_10.pt"),
                                        map_location=self._device)
+
+        # loaded two field pickle files
         self._source_field = pickle.load(open(os.path.join(path, "SourceField.p"), "rb"))
         self._target_field = pickle.load(open(os.path.join(path, "TargetField.p"), "rb"))
 
+        # rebuild the inside seq2seq model
         encoder_model = EncoderGRU(vocab_size=len(self._source_field.vocab))
         decoder_model = DecoderGRU(vocab_size=len(self._target_field.vocab))
-
-
         self._inside_model = Seq2SeqModel(encoder=encoder_model, decoder=decoder_model)
         self._inside_model.load_state_dict(loaded_checkpoint["model_state_dict"])
         self._inside_model.to(self._device)
@@ -50,7 +51,7 @@ class BriefModel(object):
         source_seq = source_batch_indexed
         target_seq = target_batch_indexed
 
-        output = self._inside_model.forward(source_seq, target_seq, 0, MAX_LENGTH=100)
+        output = self._inside_model.forward(source_seq, target_seq, 0, MAX_LENGTH=300)
         output = output[:, 1:, :]
         topv, topi = output.topk(k=1)
         topi = topi.squeeze(-1)

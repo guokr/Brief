@@ -12,8 +12,8 @@ class BriefBaseField(torchtext.data.Field):
         kwargs["batch_first"] = True
         super(BriefBaseField, self).__init__(**kwargs)
 
-    def build_vocab(self, args):
-        super(BriefBaseField, self).build_vocab(args["Dataset"], min_freq=20)
+    def build_vocab(self, args, **kwargs):
+        super(BriefBaseField, self).build_vocab(args["Dataset"], **kwargs)
 
 
 class BriefSourceField(BriefBaseField):

@@ -28,18 +28,20 @@ class BaseModel(nn.Module):
 class Seq2SeqModel(nn.Module):
     def __init__(self, path=None, encoder=None, decoder=None, device="cuda"):
         super().__init__()
-        if encoder!=None and decoder!=None:
-            self._encoder_model = encoder
-            self._decoder_model = decoder
-            self._device = device
-            self._teacher_forcing_ratio = 0.5
-            self._vocab_size = decoder._vocab_size
-            self._target_field = None
-            self._source_filed = None
-        elif path!=None:
-            # restore from checkpoint dir
-            self._device = device
-            self.load(path, self._device)
+        self._encoder_model = encoder
+        self._decoder_model = decoder
+        self._device = device
+        self._teacher_forcing_ratio = 0.5
+        self._vocab_size = decoder._vocab_size
+        self._target_field = None
+        self._source_filed = None
+
+        pytorch_total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print("num of param: {}".format(pytorch_total_params))
+        pytorch_total_params = sum(p.numel() for p in self._encoder_model.parameters() if p.requires_grad)
+        print("num of param: {}".format(pytorch_total_params))
+        pytorch_total_params = sum(p.numel() for p in self._decoder_model.parameters() if p.requires_grad)
+        print("num of param: {}".format(pytorch_total_params))
 
 
     def get_args(self):

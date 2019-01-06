@@ -88,6 +88,7 @@ class EncoderGRU(nn.Module):
     def forward(self, sequence):
         # sequence shape: [batch_size, sequence length]
         embedded = self.dropout_layer(self.embedding_layer(sequence))
+        self.gru_layer.flatten_parameters()
 
         # embedded shape: [batch_size, sequence length, embedding dim]
         outputs, hidden = self.gru_layer(embedded)
