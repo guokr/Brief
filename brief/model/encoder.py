@@ -3,30 +3,30 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class EncoderLSTM(nn.Module):
-    def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1, dropout=0.3,
-                 bidirectional=False, batch_first=True):
+    def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1,
+                 dropout_in = 0.3, dropout_out = 0.3, bidirectional=False, batch_first=True):
         super().__init__()
         ## starts with _ means normal attr, otherwise nn layers
         self._embedding_dim = embedding_dim
         self._hidden_size = hidden_size
         self._num_layers = num_layers
-        self._dropout = dropout
+        self._dropout_in = dropout_in
+        self._dropout_out = dropout_out
         self._bidirectional = bidirectional
         self._batch_first = batch_first
         self._vocab_size = vocab_size
 
         ## ends with _layer means torch nn layers
         self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
-        self.dropout_layer = nn.Dropout(self._dropout)
+        self.dropout_layer = nn.Dropout(self._dropout_in)
         self.lstm_layer = nn.LSTM(
             input_size=self._embedding_dim,
             hidden_size=self._hidden_size,
             num_layers=self._num_layers,
-            # dropout=self._dropout,
+            dropout=self._dropout_out if self._num_layers > 1 else 0.,
             bidirectional=self._bidirectional,
             batch_first=self._batch_first
         )
@@ -58,8 +58,8 @@ class EncoderLSTM(nn.Module):
         ## hidden shape: [n_layers x directions, batch_size, hidden_dim]
         ## cell shape: [n_layers x directions, batch_size, hidden_dim]
 
-        # reorder?
-        return hidden, cell
+        return outputs, hidden, cell
+
 
 
 class EncoderGRU(nn.Module):
