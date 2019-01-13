@@ -106,3 +106,45 @@ class Seq2SeqModel(nn.Module):
             decoder_input = (target_seq[:, t] if teacher_force else top1)
 
         return outputs
+
+
+class NSeq2SeqModel(nn.Module):
+    def __init__(self, path=None, encoder=None, decoder=None, device="cuda"):
+        super().__init__()
+        self._encoder_model = encoder
+        self._decoder_model = decoder
+        self._device = device
+        self._teacher_forcing_ratio = 0.5
+        self._vocab_size = decoder._vocab_size
+        self._target_field = None
+        self._source_filed = None
+
+        pytorch_total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print("num of param: {}".format(pytorch_total_params))
+        pytorch_total_params = sum(p.numel() for p in self._encoder_model.parameters() if p.requires_grad)
+        print("num of param: {}".format(pytorch_total_params))
+        pytorch_total_params = sum(p.numel() for p in self._decoder_model.parameters() if p.requires_grad)
+        print("num of param: {}".format(pytorch_total_params))
+
+        print("VOCAB is {}".format(self._vocab_size))
+
+
+    def forward(self, input_seq, target_seq, teacher_forcing_ratio=0.5):
+        print("nseq --- ")
+        # print(input_seq.shape)
+        # print(target_seq.shape)
+
+        encoder_out = self._encoder_model(input_seq)
+        # print(type(encoder_out))
+        ## print(encoder_out["encoder_out"][0].shape)
+        ## print(encoder_out["encoder_out"][1].shape)
+        ## print(encoder_out["encoder_out"][2].shape)
+        ## outputs shape: [batch_size, sequence length, hidden_size x directions ]
+        ## hidden shape: [n_layers x directions, batch_size, hidden_dim]
+        ## cell shape: [n_layers x directions, batch_size, hidden_dim]
+        outs = self._decoder_model(target_seq, encoder_out)
+        # print(outs.shape)
+        return outs
+
+
+

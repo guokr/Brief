@@ -4,7 +4,7 @@
 import argparse
 import torch
 import os
-from brief.model import DecoderGRU, EncoderGRU, Seq2SeqModel
+from brief.model import DecoderGRU, EncoderGRU, Seq2SeqModel, NSeq2SeqModel, EncoderLSTM, DecoderLSTM
 from brief.evaluator import Evaluator
 from brief.dataset import BriefSourceField, BriefTargetField, BriefDataset, BriefIterator
 from tqdm import tqdm
@@ -113,11 +113,11 @@ def train(train_data, valid_data, SourceField, TargetField):
 
     print("| Building model...")
 
-    encoder_model = EncoderGRU(vocab_size=len(SourceField.vocab))
-    decoder_model = DecoderGRU(vocab_size=len(TargetField.vocab))
+    encoder_model = EncoderLSTM(vocab_size=len(SourceField.vocab))
+    decoder_model = DecoderLSTM(vocab_size=len(TargetField.vocab))
 
-    seq2seq_model = Seq2SeqModel(encoder=encoder_model,
-                                 decoder=decoder_model)
+    seq2seq_model = NSeq2SeqModel(encoder=encoder_model,
+                                  decoder=decoder_model)
     seq2seq_model.to(device)
 
     optimizer = optim.Adam(seq2seq_model.parameters())
@@ -181,7 +181,7 @@ def test_step(SourceField, TargetField, seq2seq_model):
     source_seq = source_batch_indexed
     target_seq = target_batch_indexed
 
-    output = seq2seq_model(source_seq, target_seq, 0, MAX_LENGTH=30)
+    output = seq2seq_model(source_seq, target_seq, 0)
     # target = target_seq[:, 1:]
     # target = target.contiguous().view(-1)
     output = output[:, 1:, :]

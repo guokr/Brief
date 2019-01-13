@@ -58,8 +58,7 @@ class EncoderLSTM(nn.Module):
         ## hidden shape: [n_layers x directions, batch_size, hidden_dim]
         ## cell shape: [n_layers x directions, batch_size, hidden_dim]
 
-        return outputs, hidden, cell
-
+        return {"encoder_out": (outputs, hidden, cell)}
 
 
 class EncoderGRU(nn.Module):
