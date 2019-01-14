@@ -82,9 +82,9 @@ class Evaluator(object):
         # preds_cpu = preds.data.cpu().numpy()
 
         ########### loss computing based on concating all sentences in one minibatccccch
-        # target = target[:, 1:]
+        target = target[:, 1:]
         target = target.contiguous().view(-1)
-        # preds = preds[:, 1:, :]
+        preds = preds[:, :-1, :]
         preds = preds.contiguous().view(-1, preds.shape[2])
 
         batch_loss = self.criterion(preds, target)

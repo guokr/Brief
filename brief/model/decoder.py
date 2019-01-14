@@ -5,12 +5,31 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class AttentionLayer(nn.Module):
+    def __init__(self, input_embed_dim, output_embed_dim):
+        super().__init__()
+
+        self.input_proj = nn.Linear(input_embed_dim, output_embed_dim)
+        self.output_proj = nn.Linear(input_embed_dim + output_embed_dim, output_embed_dim)
+
+    def forward(self, input, source_hids):
+        x = self.input_proj(input)
+
+        attn_scores = (source_hids * x.unsqueeze(0)).sum(dim=2)
+
+        attn_scores = F.softmax(attn_scores, dim=0)
+
+        x = F.tanh(self.output_proj(torch.cat((x, input), dim=1)))
+
+        return x, attn_scores
+
+
 
 class DecoderLSTM(nn.Module):
-    def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1,
-                 output_embedding_dim=128,
+    def __init__(self, vocab_size, embedding_dim=512, hidden_size=512, num_layers=1,
+                 output_embedding_dim=512,
                  dropout_in=0.3, dropout_out=0.3,
-                 encoder_embedded_dim=128, encoder_output_units=128,
+                 encoder_embedded_dim=512, encoder_output_units=512,
                  batch_first=True):
         super().__init__()
         ## starts with _ means normal attr
@@ -30,6 +49,8 @@ class DecoderLSTM(nn.Module):
         ## ends with _layer means torch nn layers
         self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
 
+        self.attn_layer = AttentionLayer(self._encoder_output_units, self._hidden_size)
+
         self.lstm_layer = nn.ModuleList([
             nn.LSTMCell(
                 input_size=self._encoder_output_units + self._embedding_dim if layer==0 else hidden_size,
@@ -45,10 +66,17 @@ class DecoderLSTM(nn.Module):
         self.final_linear = nn.Linear(self._output_embedding_dim, self._vocab_size)
 
 
-    def forward(self, sequence, encoder_out):
-        batch_size, sequence_length = sequence.size()
+    def forward(self, sequence, encoder_out, mode="train", incremental_state=None):
+        # if mode == "train":
+            # sequence = sequence[:, -1:]
+
+        batch_size, target_seq_length = sequence.size()
 
         encoder_outputs, encoder_hiddens, encoder_cells = encoder_out["encoder_out"]
+
+        # encoder_outputs  = encoder_outputs.transpose(0, 1)
+        source_seq_length = encoder_outputs.size(0)
+
 
         x = self.embedding_layer(sequence)
         x = F.dropout(x, p=self._dropout_in)
@@ -56,13 +84,17 @@ class DecoderLSTM(nn.Module):
         x = x.transpose(0, 1)
         # batch_size, seq length, embed dim  => seq_length, batch_size, embed dim
 
-        prev_hiddens = [encoder_hiddens[i] for i in range(self._num_layers)]
-        prev_cells = [encoder_cells[i] for i in range(self._num_layers)]
+        if mode == "infer" and incremental_state != None:
+            prev_hiddens, prev_cells, input_feed = incremental_state
+        else:
+            prev_hiddens = [encoder_hiddens[i] for i in range(self._num_layers)]
+            prev_cells = [encoder_cells[i] for i in range(self._num_layers)]
 
-        input_feed = x.data.new(batch_size, self._encoder_output_units).zero_()
+            input_feed = x.data.new(batch_size, self._encoder_output_units).zero_()
 
+        attn_scores = x.data.new(source_seq_length, target_seq_length, batch_size).zero_()
         outs = []
-        for j in range(sequence_length):
+        for j in range(target_seq_length):
             input = torch.cat((x[j, :, :], input_feed), dim=1)
 
             for i, lstm in enumerate(self.lstm_layer):
@@ -72,22 +104,23 @@ class DecoderLSTM(nn.Module):
                 prev_hiddens[i] = hidden
                 prev_cells[i] = cell
 
-            out = hidden
+            out, attn_scores[:, j, :] = self.attn_layer(hidden, encoder_outputs)
+            # out = hidden
             out = F.dropout(out, p=self._dropout_out)
             input_feed = out
 
             outs.append(out)
 
-        x = torch.cat(outs, dim=0).view(sequence_length, batch_size, self._hidden_size)
+        incremental_state = (prev_hiddens, prev_cells, input_feed)
+
+        x = torch.cat(outs, dim=0).view(target_seq_length, batch_size, self._hidden_size)
         x = x.transpose(1, 0)
 
         x = self.final_linear(x)
 
+        if mode == "infer":
+            return x, incremental_state
         return x
-
-
-
-
 
 
 

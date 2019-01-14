@@ -118,6 +118,7 @@ class NSeq2SeqModel(nn.Module):
         self._vocab_size = decoder._vocab_size
         self._target_field = None
         self._source_filed = None
+        self._decoder_incremental_state = {}
 
         pytorch_total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print("num of param: {}".format(pytorch_total_params))
@@ -129,8 +130,7 @@ class NSeq2SeqModel(nn.Module):
         print("VOCAB is {}".format(self._vocab_size))
 
 
-    def forward(self, input_seq, target_seq, teacher_forcing_ratio=0.5):
-        print("nseq --- ")
+    def forward(self, input_seq, target_seq, incremental=None):
         # print(input_seq.shape)
         # print(target_seq.shape)
 
@@ -146,5 +146,38 @@ class NSeq2SeqModel(nn.Module):
         # print(outs.shape)
         return outs
 
+    def get_args(self):
+        return vars(self)
+
+    def infer(self, input_seq, incremental_input):
+        # target_seq_length = target_seq.size(1)
+        # print("incre input")
+        # print(incremental_input)
+        # print(incremental_input.shape)
+        final_index = []
+
+        encoder_out = self._encoder_model(input_seq)
+        self._encoder_model.eval()
+        self._decoder_model.eval()
+
+        incremental_state = None
+        for _ in range(50):
+            decoder_out, incremental_state = self._decoder_model(incremental_input,
+                                                                 encoder_out,
+                                                                 mode="infer",
+                                                                 incremental_state=incremental_state)
+
+            # print("in loop")
+            # print(decoder_out.shape)
+
+            # print(decoder_out)
+
+            topv, topi =  decoder_out.topk(dim=2, k=1)
+
+            incremental_input = topi
+            incremental_input = incremental_input.squeeze(1)
+            final_index.append(topi[0])
+
+        return final_index
 
 

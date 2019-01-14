@@ -5,9 +5,16 @@ import torch
 import torch.nn as nn
 
 
+def LSTM(input_size, hidden_size, **kwargs):
+    m = nn.LSTM(input_size, hidden_size, **kwargs)
+    for name, param in m.named_parameters():
+        if "weigth" in name or "bias" in name:
+            param.data.uniform_(-0.1, 0.1)
+    return m
+
 class EncoderLSTM(nn.Module):
-    def __init__(self, vocab_size, embedding_dim=128, hidden_size=128, num_layers=1,
-                 dropout_in = 0.3, dropout_out = 0.3, bidirectional=False, batch_first=True):
+    def __init__(self, vocab_size, embedding_dim=512, hidden_size=512, num_layers=2,
+                 dropout_in = 0.3, dropout_out = 0.3, bidirectional=False):
         super().__init__()
         ## starts with _ means normal attr, otherwise nn layers
         self._embedding_dim = embedding_dim
@@ -16,19 +23,17 @@ class EncoderLSTM(nn.Module):
         self._dropout_in = dropout_in
         self._dropout_out = dropout_out
         self._bidirectional = bidirectional
-        self._batch_first = batch_first
         self._vocab_size = vocab_size
 
         ## ends with _layer means torch nn layers
         self.embedding_layer = nn.Embedding(self._vocab_size, self._embedding_dim)
         self.dropout_layer = nn.Dropout(self._dropout_in)
-        self.lstm_layer = nn.LSTM(
+        self.lstm_layer = LSTM(
             input_size=self._embedding_dim,
             hidden_size=self._hidden_size,
             num_layers=self._num_layers,
             dropout=self._dropout_out if self._num_layers > 1 else 0.,
             bidirectional=self._bidirectional,
-            batch_first=self._batch_first
         )
 
 
@@ -36,21 +41,21 @@ class EncoderLSTM(nn.Module):
         # print("---inside encoder---")
         # print("--inside encoder", sequence.shape)
 
-        # batch_size = sequence.size(0)
+        batch_size, source_seq_length = sequence.size()
         # sequence_length = sequence.size(1)
         # state_size = batch_size, self._num_layers, self._hidden_size
         # print("state shape", state_size)
 
         embedded = self.dropout_layer(self.embedding_layer(sequence))
-        ## --> embedded shape: [batch_size, sequence length, embeding_dim]
-        # print("encoder embedded shape", embedded.shape)
 
-        #h0 = embedded.data.new(*state_size).zero_()
-        #print("h0", h0)
-        #print(h0.shape)
-        #c0 = embedded.data.new(*state_size).zero_()
+        embedded = embedded.transpose(0, 1)
+        # > t x b x c
+        state_size = self._num_layers, batch_size, self._hidden_size
 
-        outputs, (hidden, cell) = self.lstm_layer(embedded)
+        h0 = embedded.data.new(*state_size).zero_()
+        c0 = embedded.data.new(*state_size).zero_()
+
+        outputs, (hidden, cell) = self.lstm_layer(embedded, (h0, c0))
         # print("--inside encoder outputs shape", outputs.shape)
         # print("--inside encoder hiden shape", hidden.shape)
         # print("--inside encoder cell shape", cell.shape)

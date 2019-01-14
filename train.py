@@ -85,15 +85,17 @@ def preprocess():
 
     train_data, valid_data = dataset.splits()
 
-    SourceField.build_vocab(train_data, )
-    TargetField.build_vocab(train_data, )
+    SourceField.build_vocab(train_data, min_freq=2)
+    TargetField.build_vocab(train_data, min_freq=2)
 
     print("Source dataset ---")
-    print(SourceField.vocab.itos[:100])
+    # print(SourceField.vocab.itos[:])
+    # print([(k,v) for k,v in enumerate(SourceField.vocab.itos[:])])
     print(len(SourceField.vocab.itos))
     print(SourceField.vocab.freqs.most_common(20))
     print("Target dataset ---")
-    print(TargetField.vocab.itos[:100])
+    # print(TargetField.vocab.itos[:])
+    # print([(k,v) for k,v in enumerate(TargetField.vocab.itos[:])])
     print(TargetField.vocab.freqs.most_common(20))
 
     pickle.dump(SourceField, open(os.path.join(args.checkpoint_dir, "SourceField.p"), "wb"))
@@ -121,7 +123,7 @@ def train(train_data, valid_data, SourceField, TargetField):
     seq2seq_model.to(device)
 
     optimizer = optim.Adam(seq2seq_model.parameters())
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=1)
     valid_loss_history = {}
 
     print("| Training...")
@@ -138,8 +140,12 @@ def train_step(seq2seq_model, train_dataloader, optimizer, criterion, epoch):
     evaluator = Evaluator(criterion)
     tqdm_progress = tqdm(train_dataloader, desc="| Training epoch {}/{}".format(epoch, args.epoch))
     for source_seq, target_seq in tqdm_progress:
+        # print(source_seq)
+        # print(target_seq)
         optimizer.zero_grad()
         output = seq2seq_model(source_seq, target_seq)
+        # print(output.shape)
+        # print(target_seq.shape)
         loss, ppl = evaluator.evaluate(output, target_seq)
         optimizer.step()
         tqdm_progress.set_postfix({"Loss": "{:.4f}".format(loss),
@@ -164,15 +170,20 @@ def eval_step(seq2seq_model, valid_dataloader, optimizer, criterion, eval_loss_h
 
 
 TEST_CASE_tgt = ["<sos>"]
-a = """
-滁 州 市 气 象 台   2015   年   07   月   12   日   15   时   20   分 发 布 雷 电 黄 色 预 警 信 号 ： 目 前 我 市 西 部 有 较 强 对 流 云 团 向 东 南 方 向 移 动 ， 预 计   6   小 时 内 我 市 部 分 地 区 将 发 生 雷 电 活 动 ， 并 可 能 伴 有 短 时 强 降 水 、 大 风 、 局 部 冰 雹 等 强 对 流 天 气 ， 请 注 意 防 范 。 图 例 标 准 防 御 指 南   6   小 时 内 可 能 发 生 雷 电 活 动 ， 可 能 会 造 成 雷 电 灾 害 事 故 。   1   、 政 府 及 相 关 部 门 按 照 职 责 做 好 防 雷 工 作 ；   2   、 密 切 关 注 天 气 ， 尽 量 避 免 户 外 活 动 。
-"""
-TEST_CASE_src = [a]
+aa = """为 期 三 个 月 的 全 国 公 路 执 法 专 项 整 改 工 作 刚 结 束 ，
+整 治 重 点 包 括 对 非 法 超 限 运 输 车 辆 只 收 费 不 卸 载 、
+伙 同 社 会 闲 散 人 员 擅 自 放 行 等 。 然 而 ， 在 重 要 省 道 滨 唐 公 路 津 冀 交 界 处 ，
+执 法 治 超 沦 为 摆 设 ， 大 肆 收 费 后 擅 自 放 行 ， 超 载 问 题 严 重 失 控 。 <eos>"""
+### 津 冀 交 界 公 路 治 超 载 乱 象 官 卡 执 法 沦 为 摆 设
+a = """i am lazy. <eos>"""
+b = """i am cold. <eos>"""
+TEST_CASE_src = [aa]
 
 def test_step(SourceField, TargetField, seq2seq_model):
     source_vocab = SourceField.vocab.stoi
     source_batch_indexed = [[source_vocab[token] for token in sent.split()] for sent in TEST_CASE_src]
     source_batch_indexed = torch.LongTensor(source_batch_indexed).to(device)
+    # print(source_batch_indexed)
 
     target_voab = TargetField.vocab.stoi
     target_batch_indexed = [[target_voab[token] for token in sent.split()] for sent in TEST_CASE_tgt]
@@ -181,17 +192,23 @@ def test_step(SourceField, TargetField, seq2seq_model):
     source_seq = source_batch_indexed
     target_seq = target_batch_indexed
 
-    output = seq2seq_model(source_seq, target_seq, 0)
-    # target = target_seq[:, 1:]
-    # target = target.contiguous().view(-1)
-    output = output[:, 1:, :]
-    # output = output.contiguous().view(-1, output.shape[2])
-    topv, topi = output.topk(k=1)
-    topi = topi.squeeze(-1)
-    # print(topi)
-    # print(topi.shape)
-    for sentence in topi:
-        words = [TargetField.vocab.itos[word_idx] for word_idx in sentence]
+    seq2seq_model.eval()
+    with torch.no_grad():
+
+        output = seq2seq_model.infer(source_seq, target_seq)
+        # target = target_seq[:, 1:]
+        # target = target.contiguous().view(-1)
+        # output = output[:, 1:, :]
+        # output = output.contiguous().view(-1, output.shape[2])
+        # topv, topi = output.topk(k=1)
+        # topi = topi.squeeze(-1)
+        # print(topi)
+        # print(topi.shape)
+
+        # print("out ---")
+        # print(output)
+
+        words = [TargetField.vocab.itos[word_idx] for word_idx in output]
         print("Predicted -> {}".format(" ".join(words)))
 
 
