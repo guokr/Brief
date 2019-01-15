@@ -31,13 +31,18 @@ Brief is a text summarizer based on sequence to sequence framework, implemented 
   <a href="https://guokr.github.io/Caver/">Document</a>
 </p>
 
-<p align="center">
-  <img src=".github/demo.gif?raw=true" width="550">
- </p>
-
 <h2 align="center">Quick demo</h2>
 
 ```python
+from brief import BriefModel
+
+model = BriefModel("./model/")
+long_text = ("为 期 三 个 月 的 全 国 公 路 执 法 专 项 整 改 工 作 刚 结 束 ，
+             整 治 重 点 包 括 对 非 法 超 限 运 输 车 辆 只 收 费 不 卸 载 、 
+             伙 同 社 会 闲 散 人 员 擅 自 放 行 等 。 然 而 ， 在 重 要 省 道 滨 唐 公 路 津 冀 交 界 处 ，
+             执 法 治 超 沦 为 摆 设 ， 大 肆 收 费 后 擅 自 放 行 ， 超 载 问 题 严 重 失 控 。")
+model.summarize([long_text])
+>>> 津 冀 交 界 公 路 治 超 载 乱 象 官 卡 执 法 沦 为 摆 设
 ```
 
 <h2 align="center">Requirements</h2>
@@ -45,6 +50,7 @@ Brief is a text summarizer based on sequence to sequence framework, implemented 
 * PyTorch
 * tqdm
 * torchtext
+* dill
 * numpy
 * Python3
 
@@ -55,10 +61,16 @@ $ pip install brief --user
 ```
 
 <h2 align="center">Did you guys have some pre-trained models</h2>
-
+Yes, we will release two pre-trained models on LCSTS dataset on word-level and char-level separately.
 
 <h2 align="center">How to train on your own dataset</h2>
 
-
+```bash
+python3 train.py --train_filename train_full.tsv 
+                 --valid_filename valid_full.tsv
+                 --checkpoint_dir /data_hdd/brief_dev/checkpoint_exp
+                 --epoch 10
+                 --batch_size 128
+```
 <h2 align="center">More examples</h2>
-
+Updating...
