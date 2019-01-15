@@ -2,4 +2,3 @@ torch
 tqdm
 numpy
 torchtext
-unittest
