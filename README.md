@@ -1,7 +1,6 @@
 <h1 align="center">Brief</h1>
 
-<p align="center">Brief is a text summarizer based on sequence to sequence framework, implemented in Python and Facebook's <a href="https://pytorch.org/">PyTorch</a> project.</p>
-<p>In a nutshell, this is Brief.</p>
+Brief is a text summarizer based on sequence to sequence framework, implemented in Python and Facebook's <a href="https://pytorch.org/">PyTorch</a> project. In a nutshell, this is Brief.
 
 <p align="center">
   <a href="https://pypi.org/project/brief/">
