@@ -3,5 +3,8 @@ language: python
 python:
   - "3.6"
 
+install:
+  - pip install --progress-bar off -r requirements.txt
+
 script:
   python -m unittest
