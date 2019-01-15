@@ -35,23 +35,24 @@ Brief is a text summarizer based on sequence to sequence framework, implemented 
 
 ```python
 from brief import BriefModel
-
 model = BriefModel("./checkpoint_transformer")
+
 long_text = ("为 期 三 个 月 的 全 国 公 路 执 法 专 项 整 改 工 作 刚 结 束 ，
               整 治 重 点 包 括 对 非 法 超 限 运 输 车 辆 只 收 费 不 卸 载 、 
               伙 同 社 会 闲 散 人 员 擅 自 放 行 等 。 然 而 ， 在 重 要 省 道 滨 唐 公 路 津 冀 交 界 处 ，
               执 法 治 超 沦 为 摆 设 ， 大 肆 收 费 后 擅 自 放 行 ， 超 载 问 题 严 重 失 控 。")
              
 model.summarize([long_text])
->>> 津 冀 交 界 公 路 治 超 载 乱 象 官 卡 执 法 沦 为 摆 设 。
+>>> 津 冀 交 界 公 路 治 超 载 乱 象 严 重 ， 官 卡 执 法 沦 为 摆 设 。
 
 long_text = ("眼 下 ， 白 酒 业 “ 塑 化 剂 门 ” 继 续 发 酵 ， 
               业 内 业 外 各 有 说 法 。 酒 鬼 酒 公 司 股 票 继 续 停 牌 。 
               记 者 走 访 郑 州 市 场 发 现 ， 商 家 并 未 将 酒 鬼 酒 和 其 他 白 酒 下 架 ， 
               白 酒 销 量 暂 时 稳 定 ， 未 受 影 响 。 专 家 提 醒 ： 塑 化 剂 溶 于 酒 精 ， 
               应 避 免 用 塑 料 制 品 盛 装 白 酒 。")
+              
 model.summarize([long_text])
->>> 河 南 白 酒 未 受 “ 塑 化 剂 门 ” 冲 击 喝 酒 别 用 塑 料 杯 。
+>>> 河 南 白 酒 未 受 “ 塑 化 剂 门 ” 冲 击 ， 喝 酒 别 用 塑 料 杯 。
 ```
 
 <h2 align="center">Requirements</h2>
