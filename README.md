@@ -15,8 +15,8 @@ Brief is a text summarizer based on sequence to sequence framework, implemented 
         <img src="https://img.shields.io/github/issues/guokr/brief.svg"
              alt="GitHub issues">
   </a>
-  <a href="https://travis-ci.org/guokr/brief/">
-    <img src="https://travis-ci.org/guokr/brief.svg"
+  <a href="https://travis-ci.org/guokr/Brief/">
+    <img src="https://travis-ci.org/guokr/Brief.svg"
          alt="Travis CI">
   </a>
 </p>
