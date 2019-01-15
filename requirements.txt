@@ -1,4 +1,5 @@
 torch
+dill
 tqdm
 numpy
 torchtext
