@@ -35,7 +35,7 @@ Brief is a text summarizer based on sequence to sequence framework, implemented 
   <img src=".github/demo.gif?raw=true" width="550">
  </p>
 
-<h2 align="center">Quick Demo</h2>
+<h2 align="center">Quick demo</h2>
 
 ```python
 ```
@@ -60,5 +60,5 @@ $ pip install brief --user
 <h2 align="center">How to train on your own dataset</h2>
 
 
-<h2 align="center">More Examples</h2>
+<h2 align="center">More examples</h2>
 
